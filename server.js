@@ -9,21 +9,30 @@ app.use(express.static('public'));
 
 // Function to translate text to Kiswahili using LibreTranslate
 async function translateToSwahili(text) {
+  if (!text || text.trim() === '') return ''; // Skip empty text
   try {
-    const response = await axios.post('https://libretranslate.com/translate', {
-      q: text,
-      source: 'en',
-      target: 'sw',
-      format: 'text'
-    }, {
-      headers: { 'accept': 'application/json' }
-    });
+    const response = await axios.post(
+      'https://libretranslate.com/translate',
+      {
+        q: text,
+        source: 'en',
+        target: 'sw',
+        format: 'text'
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json', // <--- Required
+          'accept': 'application/json'
+        }
+      }
+    );
     return response.data.translatedText;
   } catch (error) {
-    console.error('Translation error:', error.message);
+    console.error('Translation error:', error.response?.data || error.message);
     return text; // Return original if translation fails
   }
 }
+
 
 // Function to get RSS feeds and translate titles/descriptions
 async function getArticles() {
