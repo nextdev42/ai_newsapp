@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <title>HabariHub Kiswahili</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <h1>Habari za Kiswahili (CNN & Al Jazeera)</h1>
+    <ul>
+        <% articles.forEach(article => { %>
+            <li>
+                <h2><a href="<%= article.link %>" target="_blank"><%= article.title_sw %></a></h2>
+                <p><%= article.description_sw %></p>
+                <p><em><%= article.pubDate %></em></p>
+            </li>
+        <% }) %>
+    </ul>
+</body>
+</html>
