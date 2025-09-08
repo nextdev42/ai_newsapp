@@ -1,0 +1,23 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f8f8f8;
+}
+h1 {
+    color: #333;
+}
+li {
+    background-color: #fff;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    list-style: none;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+a {
+    color: #1a0dab;
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
