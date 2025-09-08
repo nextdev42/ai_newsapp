@@ -7,32 +7,25 @@ const parser = new Parser();
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 
-// Function to translate text to Kiswahili using LibreTranslate
+// Function to translate text to Kiswahili using PythonAnywhere Free Translate API
 async function translateToSwahili(text) {
-  if (!text || text.trim() === '') return ''; // Skip empty text
+  if (!text || text.trim() === '') return '';
+
   try {
-    const response = await axios.post(
-      'https://libretranslate.com/translate',
-      {
-        q: text,
-        source: 'en',
-        target: 'sw',
-        format: 'text'
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json', // <--- Required
-          'accept': 'application/json'
-        }
+    const response = await axios.get('https://ftapi.pythonanywhere.com/translate', {
+      params: {
+        sl: 'en',    // source language
+        dl: 'sw',    // destination language
+        text: text   // text to translate
       }
-    );
-    return response.data.translatedText;
+    });
+
+    return response.data.translated_text || text;
   } catch (error) {
     console.error('Translation error:', error.response?.data || error.message);
     return text; // Return original if translation fails
   }
 }
-
 
 // Function to get RSS feeds and translate titles/descriptions
 async function getArticles() {
@@ -44,11 +37,13 @@ async function getArticles() {
   // Take top 5 articles for prototype
   articles = articles.slice(0, 5);
 
-  // Translate articles to Kiswahili
-  for (let article of articles) {
-    article.title_sw = await translateToSwahili(article.title);
-    article.description_sw = await translateToSwahili(article.contentSnippet || article.content || '');
-  }
+  // Translate articles to Kiswahili (in parallel for speed)
+  await Promise.all(
+    articles.map(async (article) => {
+      article.title_sw = await translateToSwahili(article.title);
+      article.description_sw = await translateToSwahili(article.contentSnippet || article.content || '');
+    })
+  );
 
   return articles;
 }
