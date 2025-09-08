@@ -28,6 +28,19 @@ async function translateToSwahili(text) {
 }
 
 // Function to get RSS feeds and translate titles/descriptions
+// Helper to strip HTML tags
+function stripHTML(html) {
+  if (!html) return '';
+  return html.replace(/<[^>]*>?/gm, '');
+}
+
+// Helper to limit text length (optional, e.g., 500 chars)
+function truncateText(text, maxLength = 500) {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '...';
+}
+
+// Updated getArticles function
 async function getArticles() {
   const cnnFeed = await parser.parseURL('http://rss.cnn.com/rss/edition.rss');
   const aljazeeraFeed = await parser.parseURL('https://www.aljazeera.com/xml/rss/all.xml');
@@ -37,16 +50,20 @@ async function getArticles() {
   // Take top 5 articles for prototype
   articles = articles.slice(0, 5);
 
-  // Translate articles to Kiswahili (in parallel for speed)
+  // Translate articles in parallel
   await Promise.all(
     articles.map(async (article) => {
-      article.title_sw = await translateToSwahili(article.title);
-      article.description_sw = await translateToSwahili(article.contentSnippet || article.content || '');
+      const cleanTitle = truncateText(stripHTML(article.title));
+      const cleanDesc = truncateText(stripHTML(article.contentSnippet || article.content || ''));
+
+      article.title_sw = await translateToSwahili(cleanTitle);
+      article.description_sw = await translateToSwahili(cleanDesc);
     })
   );
 
   return articles;
 }
+
 
 app.get('/', async (req, res) => {
   const articles = await getArticles();
