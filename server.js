@@ -16,19 +16,20 @@ translate.engine = "google";
 const translationCache = {};
 
 // Translate text to Swahili with caching
-async function translateToSwahili(text) {
-  if (!text || text.trim() === "") return "";
-  if (translationCache[text]) return translationCache[text];
+import translate from '@iamtraction/google-translate';
 
+// Tafsiri maandishi kwa Kiswahili
+async function translateToSwahili(text) {
+  if (!text || text.trim() === '') return '';
   try {
-    const translated = await translate(text, "sw");
-    translationCache[text] = translated;
-    return translated;
+    const res = await translate(text, { to: 'sw' });
+    return res.text;
   } catch (error) {
-    console.error("Translation error:", error.message, "| Text:", text);
+    console.error('Translation error:', error.message, '| Text:', text);
     return text;
   }
 }
+
 
 // Strip HTML tags
 function stripHTML(html) {
