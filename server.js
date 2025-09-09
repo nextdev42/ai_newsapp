@@ -4,6 +4,7 @@ import translate from "translate";
 
 const app = express();
 const parser = new Parser();
+
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 
@@ -14,7 +15,7 @@ translate.engine = "google";
 async function translateToSwahili(text) {
   if (!text || text.trim() === "") return "";
   try {
-    const translated = await translate(text, "sw"); // to Swahili
+    const translated = await translate(text, "sw"); // Swahili
     return translated;
   } catch (error) {
     console.error("Translation error:", error.message, "| Text:", text);
@@ -22,19 +23,36 @@ async function translateToSwahili(text) {
   }
 }
 
-// Strip HTML tags
+// Strip HTML
 function stripHTML(html) {
   if (!html) return "";
   return html.replace(/<[^>]*>?/gm, "");
 }
 
-// Fetch and translate articles
+// Fetch and translate articles from CNN + BBC
 async function getArticles() {
-  const cnnFeed = await parser.parseURL("http://rss.cnn.com/rss/cnn_topstories.rss");
-  const aljazeeraFeed = await parser.parseURL("https://www.aljazeera.com/xml/rss/all.xml");
+  let articles = [];
 
-  let articles = [...cnnFeed.items, ...aljazeeraFeed.items].slice(0, 15);
+  // CNN Top Stories
+  try {
+    const cnnFeed = await parser.parseURL("http://rss.cnn.com/rss/cnn_topstories.rss");
+    articles = articles.concat(cnnFeed.items);
+  } catch (err) {
+    console.error("CNN feed error:", err.message);
+  }
 
+  // BBC Top Stories
+  try {
+    const bbcFeed = await parser.parseURL("http://feeds.bbci.co.uk/news/rss.xml");
+    articles = articles.concat(bbcFeed.items);
+  } catch (err) {
+    console.error("BBC feed error:", err.message);
+  }
+
+  // Limit to top 10
+  articles = articles.slice(0, 10);
+
+  // Translate and attach images
   for (let article of articles) {
     const cleanTitle = stripHTML(article.title);
     const cleanDesc = stripHTML(
@@ -44,7 +62,6 @@ async function getArticles() {
     article.title_sw = await translateToSwahili(cleanTitle);
     article.description_sw = await translateToSwahili(cleanDesc);
 
-    // Include image if available
     if (article.enclosure && article.enclosure.url) {
       article.image = article.enclosure.url;
     } else if (article["media:content"] && article["media:content"].url) {
@@ -57,10 +74,12 @@ async function getArticles() {
   return articles;
 }
 
+// Route
 app.get("/", async (req, res) => {
   const articles = await getArticles();
   res.render("index", { articles });
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`HabariHub running on port ${PORT}`));
