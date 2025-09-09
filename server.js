@@ -30,7 +30,7 @@ function stripHTML(html) {
 
 // Fetch and translate articles
 async function getArticles() {
-  const cnnFeed = await parser.parseURL("http://rss.cnn.com/rss/edition.rss");
+  const cnnFeed = await parser.parseURL("http://rss.cnn.com/rss/cnn_topstories.rss");
   const aljazeeraFeed = await parser.parseURL("https://www.aljazeera.com/xml/rss/all.xml");
 
   let articles = [...cnnFeed.items, ...aljazeeraFeed.items].slice(0, 5);
