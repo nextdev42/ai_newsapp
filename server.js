@@ -7,8 +7,8 @@ const parser = new Parser();
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 
-// Configure translation engine
-translate.engine = "google"; // no API key needed
+// Configure Google Translate
+translate.engine = "google";
 
 // Translate text to Kiswahili
 async function translateToSwahili(text) {
@@ -18,7 +18,7 @@ async function translateToSwahili(text) {
     return translated;
   } catch (error) {
     console.error("Translation error:", error.message, "| Text:", text);
-    return text; // fallback
+    return text;
   }
 }
 
@@ -37,17 +37,21 @@ async function getArticles() {
 
   for (let article of articles) {
     const cleanTitle = stripHTML(article.title);
-    const cleanDesc = stripHTML(article.contentSnippet || article.content || article.summary || article.title || "");
+    const cleanDesc = stripHTML(
+      article.contentSnippet || article.content || article.summary || article.title || ""
+    );
 
     article.title_sw = await translateToSwahili(cleanTitle);
     article.description_sw = await translateToSwahili(cleanDesc);
 
-    // Extract image if available
-    article.image =
-      article.enclosure?.url || 
-      article["media:content"]?.url || 
-      article["media:thumbnail"]?.url || 
-      null;
+    // Include image if available
+    if (article.enclosure && article.enclosure.url) {
+      article.image = article.enclosure.url;
+    } else if (article["media:content"] && article["media:content"].url) {
+      article.image = article["media:content"].url;
+    } else {
+      article.image = null;
+    }
   }
 
   return articles;
