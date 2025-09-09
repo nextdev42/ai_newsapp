@@ -1,50 +1,51 @@
-const express = require('express');
-const Parser = require('rss-parser');
-const translate = require('@vitalets/google-translate-api');
+import express from "express";
+import Parser from "rss-parser";
+import translate from "translate";
 
 const app = express();
 const parser = new Parser();
-app.set('view engine', 'ejs');
-app.use(express.static('public'));
+app.set("view engine", "ejs");
+app.use(express.static("public"));
+
+// Configure translation engine
+translate.engine = "google"; // no API key needed
 
 // Translate text to Kiswahili
-// Translate text to Kiswahili
 async function translateToSwahili(text) {
-  if (!text || text.trim() === '') return '';
+  if (!text || text.trim() === "") return "";
   try {
-    const res = await translate(text, { from: 'en', to: 'sw' });
-    return res.text || text;
+    const translated = await translate(text, "sw"); // to Swahili
+    return translated;
   } catch (error) {
-    console.error('Translation error:', error.message, '| Text:', text);
+    console.error("Translation error:", error.message, "| Text:", text);
     return text; // fallback
   }
 }
 
-
 // Strip HTML tags
 function stripHTML(html) {
-  if (!html) return '';
-  return html.replace(/<[^>]*>?/gm, '');
+  if (!html) return "";
+  return html.replace(/<[^>]*>?/gm, "");
 }
 
 // Limit text length
 function truncateText(text, maxLength = 500) {
   if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength) + '...';
+  return text.slice(0, maxLength) + "...";
 }
 
 // Fetch and translate articles
 async function getArticles() {
-  const cnnFeed = await parser.parseURL('http://rss.cnn.com/rss/edition.rss');
-  const aljazeeraFeed = await parser.parseURL('https://www.aljazeera.com/xml/rss/all.xml');
+  const cnnFeed = await parser.parseURL("http://rss.cnn.com/rss/edition.rss");
+  const aljazeeraFeed = await parser.parseURL("https://www.aljazeera.com/xml/rss/all.xml");
 
   let articles = [...cnnFeed.items, ...aljazeeraFeed.items].slice(0, 5);
 
-  // Translate sequentially to avoid throttling
+  // Sequential translation to avoid Google blocking
   for (let article of articles) {
     const cleanTitle = truncateText(stripHTML(article.title));
     const cleanDesc = truncateText(
-      stripHTML(article.contentSnippet || article.content || article.summary || article.title || '')
+      stripHTML(article.contentSnippet || article.content || article.summary || article.title || "")
     );
 
     article.title_sw = await translateToSwahili(cleanTitle);
@@ -54,9 +55,9 @@ async function getArticles() {
   return articles;
 }
 
-app.get('/', async (req, res) => {
+app.get("/", async (req, res) => {
   const articles = await getArticles();
-  res.render('index', { articles });
+  res.render("index", { articles });
 });
 
 const PORT = process.env.PORT || 3000;
