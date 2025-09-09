@@ -8,6 +8,7 @@ app.set('view engine', 'ejs');
 app.use(express.static('public'));
 
 // Translate text to Kiswahili
+// Translate text to Kiswahili
 async function translateToSwahili(text) {
   if (!text || text.trim() === '') return '';
   try {
@@ -18,6 +19,7 @@ async function translateToSwahili(text) {
     return text; // fallback
   }
 }
+
 
 // Strip HTML tags
 function stripHTML(html) {
