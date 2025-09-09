@@ -28,12 +28,6 @@ function stripHTML(html) {
   return html.replace(/<[^>]*>?/gm, "");
 }
 
-// Limit text length
-function truncateText(text, maxLength = 500) {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength) + "...";
-}
-
 // Fetch and translate articles
 async function getArticles() {
   const cnnFeed = await parser.parseURL("http://rss.cnn.com/rss/edition.rss");
@@ -41,15 +35,19 @@ async function getArticles() {
 
   let articles = [...cnnFeed.items, ...aljazeeraFeed.items].slice(0, 5);
 
-  // Sequential translation to avoid Google blocking
   for (let article of articles) {
-    const cleanTitle = truncateText(stripHTML(article.title));
-    const cleanDesc = truncateText(
-      stripHTML(article.contentSnippet || article.content || article.summary || article.title || "")
-    );
+    const cleanTitle = stripHTML(article.title);
+    const cleanDesc = stripHTML(article.contentSnippet || article.content || article.summary || article.title || "");
 
     article.title_sw = await translateToSwahili(cleanTitle);
     article.description_sw = await translateToSwahili(cleanDesc);
+
+    // Extract image if available
+    article.image =
+      article.enclosure?.url || 
+      article["media:content"]?.url || 
+      article["media:thumbnail"]?.url || 
+      null;
   }
 
   return articles;
