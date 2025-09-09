@@ -50,7 +50,7 @@ async function getArticles() {
   }
 
   // Limit to top 10
-  articles = articles.slice(0, 10);
+  articles = articles.slice(0, 20);
 
   // Translate and attach images
   for (let article of articles) {
