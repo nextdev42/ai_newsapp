@@ -1,15 +1,10 @@
 import express from "express";
 import Parser from "rss-parser";
+import axios from "axios";
 import translate from "translate";
 
 const app = express();
-
-// Configure rss-parser with browser-like headers
-const parser = new Parser({
-  headers: {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-  }
-});
+const parser = new Parser();
 
 app.set("view engine", "ejs");
 app.use(express.static("public"));
@@ -17,11 +12,17 @@ app.use(express.static("public"));
 // Configure Google Translate
 translate.engine = "google";
 
-// Translate text to Kiswahili
+// Simple in-memory cache for translations
+const translationCache = {};
+
+// Translate text to Swahili with caching
 async function translateToSwahili(text) {
   if (!text || text.trim() === "") return "";
+  if (translationCache[text]) return translationCache[text];
+
   try {
-    const translated = await translate(text, "sw"); // Swahili
+    const translated = await translate(text, "sw");
+    translationCache[text] = translated;
     return translated;
   } catch (error) {
     console.error("Translation error:", error.message, "| Text:", text);
@@ -29,36 +30,36 @@ async function translateToSwahili(text) {
   }
 }
 
-// Strip HTML
+// Strip HTML tags
 function stripHTML(html) {
   if (!html) return "";
   return html.replace(/<[^>]*>?/gm, "");
 }
 
-// Fetch and translate articles from CNN + BBC
+// Fetch RSS feed safely with axios
+async function fetchFeed(url) {
+  try {
+    const res = await axios.get(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      timeout: 10000
+    });
+    return await parser.parseString(res.data);
+  } catch (err) {
+    console.error("Feed fetch error:", err.message, "| URL:", url);
+    return { items: [] };
+  }
+}
+
+// Fetch and process articles from CNN + BBC
 async function getArticles() {
-  let articles = [];
+  const cnnFeed = await fetchFeed("http://rss.cnn.com/rss/cnn_topstories.rss");
+  const bbcFeed = await fetchFeed("https://feeds.bbci.co.uk/news/rss.xml");
 
-  // CNN Top Stories
-  try {
-    const cnnFeed = await parser.parseURL("http://rss.cnn.com/rss/cnn_topstories.rss");
-    articles = articles.concat(cnnFeed.items);
-  } catch (err) {
-    console.error("CNN feed error:", err.message);
-  }
-
-  // BBC Top Stories
-  try {
-    const bbcFeed = await parser.parseURL("https://feeds.bbci.co.uk/news/rss.xml");
-    articles = articles.concat(bbcFeed.items);
-  } catch (err) {
-    console.error("BBC feed error:", err.message);
-  }
+  let articles = [...cnnFeed.items, ...bbcFeed.items];
 
   // Limit to top 20 articles
   articles = articles.slice(0, 20);
 
-  // Translate and attach images
   await Promise.all(
     articles.map(async (article) => {
       const cleanTitle = stripHTML(article.title);
@@ -69,7 +70,7 @@ async function getArticles() {
       article.title_sw = await translateToSwahili(cleanTitle);
       article.description_sw = await translateToSwahili(cleanDesc);
 
-      // Add images if available
+      // Attach images if available
       if (article.enclosure && article.enclosure.url) {
         article.image = article.enclosure.url;
       } else if (article["media:content"] && article["media:content"].url) {
