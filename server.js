@@ -7,15 +7,14 @@ const parser = new Parser();
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 
-// Function to translate text to Kiswahili
+// Translate text to Kiswahili
 async function translateToSwahili(text) {
   if (!text || text.trim() === '') return '';
-
   try {
     const res = await translate(text, { from: 'en', to: 'sw' });
     return res.text || text;
   } catch (error) {
-    console.error('Translation error:', error.message);
+    console.error('Translation error:', error.message, '| Text:', text);
     return text; // fallback
   }
 }
@@ -26,7 +25,7 @@ function stripHTML(html) {
   return html.replace(/<[^>]*>?/gm, '');
 }
 
-// Limit text length (optional)
+// Limit text length
 function truncateText(text, maxLength = 500) {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + '...';
@@ -39,16 +38,16 @@ async function getArticles() {
 
   let articles = [...cnnFeed.items, ...aljazeeraFeed.items].slice(0, 5);
 
-  // Translate articles in parallel
-  await Promise.all(
-    articles.map(async (article) => {
-      const cleanTitle = truncateText(stripHTML(article.title));
-      const cleanDesc = truncateText(stripHTML(article.contentSnippet || article.content || ''));
+  // Translate sequentially to avoid throttling
+  for (let article of articles) {
+    const cleanTitle = truncateText(stripHTML(article.title));
+    const cleanDesc = truncateText(
+      stripHTML(article.contentSnippet || article.content || article.summary || article.title || '')
+    );
 
-      article.title_sw = await translateToSwahili(cleanTitle);
-      article.description_sw = await translateToSwahili(cleanDesc);
-    })
-  );
+    article.title_sw = await translateToSwahili(cleanTitle);
+    article.description_sw = await translateToSwahili(cleanDesc);
+  }
 
   return articles;
 }
