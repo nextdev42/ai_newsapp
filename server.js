@@ -3,7 +3,13 @@ import Parser from "rss-parser";
 import translate from "translate";
 
 const app = express();
-const parser = new Parser();
+
+// Configure rss-parser with browser-like headers
+const parser = new Parser({
+  headers: {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+  }
+});
 
 app.set("view engine", "ejs");
 app.use(express.static("public"));
@@ -43,38 +49,41 @@ async function getArticles() {
 
   // BBC Top Stories
   try {
-    const bbcFeed = await parser.parseURL("http://feeds.bbci.co.uk/news/rss.xml");
+    const bbcFeed = await parser.parseURL("https://feeds.bbci.co.uk/news/rss.xml");
     articles = articles.concat(bbcFeed.items);
   } catch (err) {
     console.error("BBC feed error:", err.message);
   }
 
-  // Limit to top 10
+  // Limit to top 20 articles
   articles = articles.slice(0, 20);
 
   // Translate and attach images
-  for (let article of articles) {
-    const cleanTitle = stripHTML(article.title);
-    const cleanDesc = stripHTML(
-      article.contentSnippet || article.content || article.summary || article.title || ""
-    );
+  await Promise.all(
+    articles.map(async (article) => {
+      const cleanTitle = stripHTML(article.title);
+      const cleanDesc = stripHTML(
+        article.contentSnippet || article.content || article.summary || article.title || ""
+      );
 
-    article.title_sw = await translateToSwahili(cleanTitle);
-    article.description_sw = await translateToSwahili(cleanDesc);
+      article.title_sw = await translateToSwahili(cleanTitle);
+      article.description_sw = await translateToSwahili(cleanDesc);
 
-    if (article.enclosure && article.enclosure.url) {
-      article.image = article.enclosure.url;
-    } else if (article["media:content"] && article["media:content"].url) {
-      article.image = article["media:content"].url;
-    } else {
-      article.image = null;
-    }
-  }
+      // Add images if available
+      if (article.enclosure && article.enclosure.url) {
+        article.image = article.enclosure.url;
+      } else if (article["media:content"] && article["media:content"].url) {
+        article.image = article["media:content"].url;
+      } else {
+        article.image = null;
+      }
+    })
+  );
 
   return articles;
 }
 
-// Route
+// Main route
 app.get("/", async (req, res) => {
   const articles = await getArticles();
   res.render("index", { articles });
