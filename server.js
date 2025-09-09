@@ -33,7 +33,7 @@ async function getArticles() {
   const cnnFeed = await parser.parseURL("http://rss.cnn.com/rss/cnn_topstories.rss");
   const aljazeeraFeed = await parser.parseURL("https://www.aljazeera.com/xml/rss/all.xml");
 
-  let articles = [...cnnFeed.items, ...aljazeeraFeed.items].slice(0, 5);
+  let articles = [...cnnFeed.items, ...aljazeeraFeed.items].slice(0, 15);
 
   for (let article of articles) {
     const cleanTitle = stripHTML(article.title);
