@@ -9,7 +9,7 @@ const PORT = 3000;
 
 // ==== OpenAI Config (weka API key yako) ====
 const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: "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",
 });
 const openai = new OpenAIApi(configuration);
 
