@@ -50,12 +50,12 @@ async function fetchFeed(url) {
 // Fetch & process articles
 async function getArticles() {
   const feeds = [
-    "http://rss.cnn.com/rss/cnn_topstories.rss",
-    "https://feeds.bbci.co.uk/news/rss.xml",
-    "http://feeds.reuters.com/reuters/topNews",
-    "https://www.aljazeera.com/xml/rss/all.xml",
-    "https://www.theguardian.com/world/rss",
-  ];
+  "http://rss.cnn.com/rss/cnn_topstories.rss",
+  "https://feeds.bbci.co.uk/news/rss.xml",
+  "https://www.reutersagency.com/feed/?best-topics=world&post_type=best",
+  "https://www.aljazeera.com/xml/rss/all.xml",
+  "https://www.theguardian.com/world/rss",
+];
 
   // Fetch all feeds in parallel
   const results = await Promise.all(feeds.map(fetchFeed));
