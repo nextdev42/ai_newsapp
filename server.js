@@ -1,145 +1,92 @@
 import express from "express";
+import Parser from "rss-parser";
 import axios from "axios";
-import { load } from "cheerio";
-import OpenAI from "openai";
-import winston from "winston";
-import path from "path";
+import translate from "@iamtraction/google-translate";
 
-// ===== Winston Logger Setup =====
-const logDir = "logs";
-const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-    winston.format.printf(
-      (info) => `[${info.timestamp}] ${info.level.toUpperCase()}: ${info.message}`
-    )
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: path.join(logDir, "habarihub.log") })
-  ],
-});
-
-// ===== Express + OpenAI Setup =====
 const app = express();
-const PORT = 3000;
+const parser = new Parser();
 
-const openai = new OpenAI.OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// ===== View Engine =====
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 
-// ===== Target Site =====
-const TARGET_URL = "https://www.reuters.com/world/";
+// Simple in-memory cache for translations
+const translationCache = {};
 
-// ===== Scraper =====
-async function scrapeNews() {
+// Tafsiri maandishi kwa Kiswahili
+async function translateToSwahili(text) {
+  if (!text || text.trim() === "") return "";
+  if (translationCache[text]) return translationCache[text];
+
   try {
-    const { data } = await axios.get(TARGET_URL);
-    const $ = load(data);
+    const res = await translate(text, { to: "sw" });
+    translationCache[text] = res.text;
+    return res.text;
+  } catch (error) {
+    console.error("Translation error:", error.message, "| Text:", text);
+    return text;
+  }
+}
 
-    const news = [];
+// Ondoa HTML tags
+function stripHTML(html) {
+  if (!html) return "";
+  return html.replace(/<[^>]*>?/gm, "");
+}
 
-    $("article.story-card, div.story-content, div.media-story-card__body").each((i, el) => {
-      const title = $(el).find("h2, h3").text().trim();
-      const link = $(el).find("a").attr("href");
+// Fetch RSS feed safely na axios
+async function fetchFeed(url) {
+  try {
+    const res = await axios.get(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      timeout: 10000
+    });
+    return await parser.parseString(res.data);
+  } catch (err) {
+    console.error("Feed fetch error:", err.message, "| URL:", url);
+    return { items: [] };
+  }
+}
 
-      if (title && link) {
-        news.push({
-          title,
-          link: link.startsWith("http") ? link : `https://www.reuters.com${link}`,
-        });
+// Fetch na process articles
+async function getArticles() {
+  const cnnFeed = await fetchFeed("http://rss.cnn.com/rss/cnn_topstories.rss");
+  const bbcFeed = await fetchFeed("https://feeds.bbci.co.uk/news/rss.xml");
+
+  let articles = [...cnnFeed.items, ...bbcFeed.items];
+
+  // Limit to top 20
+  articles = articles.slice(0, 20);
+
+  await Promise.all(
+    articles.map(async (article) => {
+      const cleanTitle = stripHTML(article.title);
+      const cleanDesc = stripHTML(
+        article.contentSnippet || article.content || article.summary || article.title || ""
+      );
+
+      article.title_sw = await translateToSwahili(cleanTitle);
+      article.description_sw = await translateToSwahili(cleanDesc);
+
+      // Attach images
+      if (article.enclosure && article.enclosure.url) {
+        article.image = article.enclosure.url;
+      } else if (article["media:content"] && article["media:content"].url) {
+        article.image = article["media:content"].url;
+      } else {
+        article.image = null;
       }
-    });
+    })
+  );
 
-    return news.slice(0, 15);
-  } catch (err) {
-    logger.error(`Scraping error: ${err.message}`);
-    return [];
-  }
+  return articles;
 }
 
-// ===== Translator =====
-async function translateText(text, targetLang = "sw") {
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: `You are a translator that translates text into ${targetLang}.` },
-        { role: "user", content: text },
-      ],
-    });
-
-    return response.choices[0].message.content.trim();
-  } catch (err) {
-    logger.error(`Translation error: ${err.message} | Text: ${text}`);
-    return text; // fallback
-  }
-}
-
-// ===== Routes =====
-
-// Homepage => Swahili news
+// Route
 app.get("/", async (req, res) => {
-  const news = await scrapeNews();
-
-  // Translate in parallel for speed
-  const translatedNews = await Promise.all(
-    news.map(async (item) => ({
-      original: item.title,
-      translated: await translateText(item.title, "Swahili"),
-      link: item.link,
-    }))
-  );
-
-  res.render("index", { articles: translatedNews });
+  const articles = await getArticles();
+  res.render("index", { articles });
 });
 
-// Raw JSON (English)
-app.get("/news", async (req, res) => {
-  const news = await scrapeNews();
-  res.json(news);
-});
-
-// Raw JSON (Swahili)
-app.get("/news/sw", async (req, res) => {
-  const news = await scrapeNews();
-  const translatedNews = await Promise.all(
-    news.map(async (item) => ({
-      original: item.title,
-      translated: await translateText(item.title, "Swahili"),
-      link: item.link,
-    }))
-  );
-  res.json(translatedNews);
-});
-
-  app.get("/check-key", (req, res) => {
-  if (process.env.OPENAI_API_KEY) {
-    res.send("✅ OPENAI_API_KEY is set");
-  } else {
-    res.status(500).send("❌ OPENAI_API_KEY is missing");
-  }
-});
-app.get("/test-translate", async (req, res) => {
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: "Translate to Swahili" },
-        { role: "user", content: "Hello world" }
-      ]
-    });
-    res.send(response.choices[0].message.content);
-  } catch (err) {
-    res.status(500).send(`Error: ${err.message}`);
-  }
-});
 // Start server
-app.listen(PORT, () => {
-  logger.info(`HabariHub running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`HabariHub running on port ${PORT}`));
