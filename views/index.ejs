@@ -1,44 +1,258 @@
 <!DOCTYPE html>
 <html lang="sw">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HabariHub - Kiswahili</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f0f2f5; margin:0; padding:0; color:#333; }
-    header { background:#0d6efd; color:#fff; text-align:center; padding:1rem; }
-    main { max-width:900px; margin:2rem auto; padding:0 1rem; }
-    .article { background:#fff; margin-bottom:2rem; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.1); overflow:hidden; }
-    .article img { width:100%; max-height:400px; object-fit:cover; }
-    .article-content { padding:1rem 1.5rem; }
-    .article h2 { font-size:1.5rem; margin:0 0 0.5rem; }
-    .article p { line-height:1.6; }
-    .article a { color:#0d6efd; text-decoration:none; font-weight:bold; }
-    .date { font-size:0.85rem; color:#666; margin-top:0.5rem; }
-    @media (max-width:600px){ .article h2{ font-size:1.2rem; } }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HabariHub - Habari za Kimataifa na za Tanzania</title>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --secondary: #34a853;
+            --accent: #fbbc04;
+            --light: #f8f9fa;
+            --dark: #202124;
+            --gray: #5f6368;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background-color: #f5f5f5;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .logo {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tagline {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        
+        .category-tabs {
+            display: flex;
+            justify-content: center;
+            margin: 1.5rem 0;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .category-tab {
+            padding: 0.5rem 1rem;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .category-tab.active, .category-tab:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .news-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .news-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .news-image {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+        }
+        
+        .no-image {
+            width: 100%;
+            height: 180px;
+            background: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray);
+        }
+        
+        .news-content {
+            padding: 1rem;
+        }
+        
+        .news-source {
+            font-size: 0.8rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        .news-title {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+        }
+        
+        .news-title-en {
+            font-size: 0.9rem;
+            color: var(--gray);
+            margin-bottom: 0.5rem;
+            font-style: italic;
+        }
+        
+        .news-desc {
+            font-size: 0.9rem;
+            color: var(--gray);
+            margin-bottom: 1rem;
+        }
+        
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+        
+        .news-category {
+            background: var(--accent);
+            color: var(--dark);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 2rem;
+            background: var(--dark);
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .news-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .category-tabs {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .category-tab {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
 </head>
 <body>
-  <header>
-    <h1>HabariHub - Habari kwa Kiswahili</h1>
-  </header>
-
-  <main>
-    <% articles.forEach(article => { %>
-      <div class="article">
-        <% if (article.image) { %>
-          <img src="<%= article.image %>" alt="Article Image">
-        <% } %>
-        <div class="article-content">
-          <h2><%= article.title_sw %></h2>
-          <p><%= article.description_sw %></p>
-          <p><a href="<%= article.link %>" target="_blank">Soma zaidi</a></p>
-          <% if (article.pubDate) { %>
-            <p class="date"><%= new Date(article.pubDate).toLocaleString("sw-TZ") %></p>
-          <% } %>
+    <header>
+        <div class="logo">HabariHub</div>
+        <div class="tagline">Ukurasa wako wa habari za Tanzania na kimataifa</div>
+    </header>
+    
+    <div class="container">
+        <div class="category-tabs">
+            <div class="category-tab active" data-category="all">Habari Zote</div>
+            <div class="category-tab" data-category="tanzania">Tanzania</div>
+            <div class="category-tab" data-category="eastAfrica">Afrika Mashariki</div>
+            <div class="category-tab" data-category="sports">Michezo</div>
+            <div class="category-tab" data-category="international">Kimataifa</div>
         </div>
-      </div>
-    <% }) %>
-  </main>
+        
+        <div class="news-grid">
+            <% articles.forEach(article => { %>
+                <div class="news-card" data-category="<%= article.category %>">
+                    <% if (article.image) { %>
+                        <img src="<%= article.image %>" alt="<%= article.title_sw %>" class="news-image">
+                    <% } else { %>
+                        <div class="no-image">Hakuna Picha</div>
+                    <% } %>
+                    
+                    <div class="news-content">
+                        <span class="news-source"><%= article.source %></span>
+                        <h3 class="news-title"><%= article.title_sw %></h3>
+                        <p class="news-title-en"><%= article.title %></p>
+                        <p class="news-desc"><%= article.description_sw %></p>
+                        
+                        <div class="news-meta">
+                            <span><%= new Date(article.pubDate).toLocaleDateString('sw-TZ') %></span>
+                            <span class="news-category"><%= article.category %></span>
+                        </div>
+                    </div>
+                </div>
+            <% }); %>
+        </div>
+    </div>
+    
+    <footer>
+        <p>HabariHub &copy; 2023 - Huduma bora kwa habari za Tanzania na duniani</p>
+        <p>Powered by BBC, CNN, Reuters, The Citizen, Nation Media, na vyanzo vingine vya habari</p>
+    </footer>
+
+    <script>
+        // Category filtering functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.category-tab');
+            const newsCards = document.querySelectorAll('.news-card');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // Remove active class from all tabs
+                    tabs.forEach(t => t.classList.remove('active'));
+                    
+                    // Add active class to clicked tab
+                    tab.classList.add('active');
+                    
+                    const category = tab.getAttribute('data-category');
+                    
+                    // Show/hide news cards based on category
+                    newsCards.forEach(card => {
+                        if (category === 'all' || card.getAttribute('data-category') === category) {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                });
+            });
+        });
+    </script>
 </body>
 </html>
