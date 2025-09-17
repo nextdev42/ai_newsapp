@@ -1,21 +1,20 @@
 // server.js
-const express = require("express");
-const axios = require("axios");
-const cheerio = require("cheerio");
-const { Configuration, OpenAIApi } = require("openai");
+import express from "express";
+import axios from "axios";
+import cheerio from "cheerio";
+import OpenAI from "openai";
 
 const app = express();
 const PORT = 3000;
 
-// ==== OpenAI Config (weka API key yako) ====
-const configuration = new Configuration({
+// ==== OpenAI Config ====
+const openai = new OpenAI.OpenAI({
   apiKey: "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",
 });
-const openai = new OpenAIApi(configuration);
 
 // ==== View Engine ====
 app.set("view engine", "ejs");
-app.use(express.static("public")); // kwa CSS/images
+app.use(express.static("public"));
 
 // ==== Target site (Reuters World News) ====
 const TARGET_URL = "https://www.reuters.com/world/";
@@ -47,10 +46,10 @@ async function scrapeNews() {
   }
 }
 
-// Translation helper (English -> Swahili)
+// Translation helper
 async function translateText(text, targetLang = "sw") {
   try {
-    const response = await openai.createChatCompletion({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: `You are a translator that translates text into ${targetLang}.` },
@@ -58,16 +57,16 @@ async function translateText(text, targetLang = "sw") {
       ],
     });
 
-    return response.data.choices[0].message.content.trim();
+    return response.choices[0].message.content.trim();
   } catch (err) {
     console.error("Translation error:", err.message);
-    return text; // fallback original
+    return text;
   }
 }
 
 // ==== Routes ====
 
-// Homepage => Habari zimetafsiriwa Kiswahili
+// Homepage => Swahili news
 app.get("/", async (req, res) => {
   const news = await scrapeNews();
   const translatedNews = [];
