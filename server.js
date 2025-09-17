@@ -49,10 +49,12 @@ async function fetchFeed(url) {
 
 // Fetch na process articles
 async function getArticles() {
+  // Change sources here to your preferred sites with RSS feeds
   const cnnFeed = await fetchFeed("http://rss.cnn.com/rss/cnn_topstories.rss");
   const bbcFeed = await fetchFeed("https://feeds.bbci.co.uk/news/rss.xml");
+  const cnbcFeed = await fetchFeed("https://www.cnbc.com/id/100003114/device/rss/rss.html"); // Example CNBC feed
 
-  let articles = [...cnnFeed.items, ...bbcFeed.items];
+  let articles = [...cnnFeed.items, ...bbcFeed.items, ...cnbcFeed.items];
 
   // Limit to top 20
   articles = articles.slice(0, 20);
@@ -67,7 +69,7 @@ async function getArticles() {
       article.title_sw = await translateToSwahili(cleanTitle);
       article.description_sw = await translateToSwahili(cleanDesc);
 
-      // Attach images
+      // Attach images if available
       if (article.enclosure && article.enclosure.url) {
         article.image = article.enclosure.url;
       } else if (article["media:content"] && article["media:content"].url) {
