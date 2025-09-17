@@ -2,6 +2,7 @@ import express from "express";
 import Parser from "rss-parser";
 import axios from "axios";
 import translate from "@iamtraction/google-translate";
+import cheerio from "cheerio"; // <-- Import cheerio
 
 const app = express();
 const parser = new Parser({
@@ -22,81 +23,56 @@ app.use(express.static("public"));
 const translationCache = {};
 const CACHE_EXPIRY = 30 * 60 * 1000; // 30 minutes
 
-// Tafsiri maandishi kwa Kiswahili - improved version
 async function translateToSwahili(text) {
   if (!text || text.trim() === "") return "";
   
-  // Check cache with expiry
   const now = Date.now();
   if (translationCache[text] && (now - translationCache[text].timestamp) < CACHE_EXPIRY) {
     return translationCache[text].translation;
   }
 
   try {
-    // Clean text before translation
     const cleanText = text.replace(/[^\w\s.,!?;:'"-]/gi, '').trim();
     if (!cleanText) return "";
     
     const res = await translate(cleanText, { to: "sw" });
     const translation = res.text;
     
-    // Cache the translation with timestamp
-    translationCache[text] = {
-      translation: translation,
-      timestamp: now
-    };
+    translationCache[text] = { translation, timestamp: now };
     
     return translation;
   } catch (error) {
     console.error("Translation error:", error.message, "| Text:", text);
-    // Return original text if translation fails, but mark it for manual review
     return text;
   }
 }
 
-// Function to detect if text is already in Swahili
 function isSwahili(text) {
   if (!text) return false;
   
-  // Common Swahili words and prefixes
-  const swahiliIndicators = [
-    'ya', 'wa', 'za', 'ku', 'na', 'ni', 'kwa', 'haya', 'hii', 'hili', 'hivi',
-    'mimi', 'wewe', 'yeye', 'sisi', 'nyinyi', 'wao', 'huko', 'hapa', 'pale',
-    'lakini', 'au', 'ama', 'basi', 'bila', 'kama', 'kwenye', 'katika', 'kutoka'
-  ];
+  const swahiliIndicators = ['ya','wa','za','ku','na','ni','kwa','haya','hii','hili','hivi','mimi','wewe','yeye','sisi','nyinyi','wao','huko','hapa','pale','lakini','au','ama','basi','bila','kama','kwenye','katika','kutoka'];
   
   const words = text.toLowerCase().split(/\s+/);
-  let swahiliWordCount = 0;
-  
+  let count = 0;
   for (const word of words) {
-    if (swahiliIndicators.includes(word)) {
-      swahiliWordCount++;
-    }
-    
-    // If we find enough Swahili indicators, consider it Swahili
-    if (swahiliWordCount >= 2) {
-      return true;
-    }
+    if (swahiliIndicators.includes(word)) count++;
+    if (count >= 2) return true;
   }
-  
   return false;
 }
 
-// Ondoa HTML tags
 function stripHTML(html) {
   if (!html) return "";
   return html.replace(/<[^>]*>?/gm, "");
 }
 
-// Fetch RSS feed safely na axios
 async function fetchFeed(url) {
   try {
     console.log(`Fetching feed from: ${url}`);
     const res = await axios.get(url, {
       headers: { 
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Accept": "application/xml, text/xml, */*",
-        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/xml, text/xml, */*"
       },
       timeout: 20000
     });
@@ -107,51 +83,42 @@ async function fetchFeed(url) {
   }
 }
 
-// Web scraping functions with improved content extraction
+// Example: Tanzanian news scraping
 async function scrapeTanzaniaNews() {
   try {
-    console.log("Scraping Tanzania news...");
     const { data } = await axios.get('https://www.thecitizen.co.tz', {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-      },
+      headers: { "User-Agent": "Mozilla/5.0" },
       timeout: 15000
     });
-    
     const $ = cheerio.load(data);
     const articles = [];
-    
-    // Improved scraping for Tanzanian news
-    $('.headline, .title, h1, h2, h3').each((i, element) => {
-      const title = $(element).text().trim();
+    $('a.headline, a.title, h1, h2, h3').each((i, el) => {
+      const title = $(el).text().trim();
       if (title && title.length > 10 && title.length < 200 && !title.includes('ADVERTISEMENT')) {
-        const url = $(element).closest('a').attr('href');
+        const url = $(el).closest('a').attr('href');
         const fullUrl = url ? (url.startsWith('http') ? url : `https://www.thecitizen.co.tz${url}`) : 'https://www.thecitizen.co.tz';
-        
         articles.push({
-          title: title,
+          title,
           link: fullUrl,
           pubDate: new Date().toISOString(),
           source: "The Citizen Tanzania",
           category: "tanzania",
-          // Mark as needing translation if not already in Swahili
           needsTranslation: !isSwahili(title)
         });
       }
     });
-    
     return articles.slice(0, 5);
-  } catch (error) {
-    console.error("Tanzania scraping error:", error.message);
+  } catch (err) {
+    console.error("Tanzania scraping error:", err.message);
     return [];
   }
 }
 
-// Similar improvements for other scraping functions...
+// Placeholder scraping functions for completeness
+async function scrapeEastAfricaNews() { return []; }
+async function scrapeESPNNews() { return []; }
 
-// Fetch na process articles with enhanced translation
 async function getArticles() {
-  // Categorize feeds by type with working URLs
   const feedCategories = {
     international: [
       "https://feeds.bbci.co.uk/news/rss.xml",
@@ -166,33 +133,18 @@ async function getArticles() {
   };
 
   let articles = [];
-  const feedResults = [];
-
-  // Fetch and parse each feed from all categories
   for (const category in feedCategories) {
     for (const url of feedCategories[category]) {
       const feed = await fetchFeed(url);
-      feedResults.push({
-        url,
-        category,
-        title: feed.title,
-        itemCount: feed.items ? feed.items.length : 0,
-        failed: feed.failed || false
-      });
-      
       if (feed.items && feed.items.length > 0) {
-        const sourceArticles = feed.items.map(item => {
-          return {
-            ...item,
-            source: feed.title || url,
-            sourceUrl: url,
-            category: category,
-            needsTranslation: true // Assume all RSS items need translation
-          };
-        });
-        
+        const sourceArticles = feed.items.map(item => ({
+          ...item,
+          source: feed.title || url,
+          sourceUrl: url,
+          category,
+          needsTranslation: true
+        }));
         articles = articles.concat(sourceArticles);
-        console.log(`Added ${feed.items.length} articles from ${feed.title || url} (${category})`);
       }
     }
   }
@@ -203,63 +155,46 @@ async function getArticles() {
     scrapeEastAfricaNews(),
     scrapeESPNNews()
   ]);
-  
   articles = articles.concat(tanzaniaArticles, eastAfricaArticles, espnArticles);
 
-  // Filter articles published in the last 48 hours
+  // Filter last 48 hours
   const now = new Date();
   const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  articles = articles.filter(a => a.pubDate && new Date(a.pubDate) > twoDaysAgo);
 
-  articles = articles.filter(article => {
-    if (!article.pubDate) return false;
-    const pubDate = new Date(article.pubDate);
-    return pubDate > twoDaysAgo;
-  });
+  // Sort newest first
+  articles.sort((a,b) => new Date(b.pubDate) - new Date(a.pubDate));
 
-  // Sort by date, newest first
-  articles.sort((a, b) => {
-    return new Date(b.pubDate) - new Date(a.pubDate);
-  });
+  // Limit top 30
+  articles = articles.slice(0,30);
 
-  // Limit to top 30 recent articles
-  articles = articles.slice(0, 30);
-
-  // Translate titles and descriptions that need translation
+  // Translate
   await Promise.all(
-    articles.map(async (article) => {
-      // Only translate if needed
-      if (article.needsTranslation) {
-        const cleanTitle = stripHTML(article.title || "");
-        const cleanDesc = stripHTML(
-          article.contentSnippet || article.content || article.summary || article.description || ""
-        );
-
-        article.title_sw = await translateToSwahili(cleanTitle);
-        article.description_sw = await translateToSwahili(cleanDesc.slice(0, 200));
+    articles.map(async a => {
+      if (a.needsTranslation) {
+        const cleanTitle = stripHTML(a.title || "");
+        const cleanDesc = stripHTML(a.contentSnippet || a.content || a.summary || a.description || "");
+        a.title_sw = await translateToSwahili(cleanTitle);
+        a.description_sw = await translateToSwahili(cleanDesc.slice(0,200));
       } else {
-        // Already in Swahili
-        article.title_sw = article.title;
-        article.description_sw = article.contentSnippet || article.description || "";
+        a.title_sw = a.title;
+        a.description_sw = a.contentSnippet || a.description || "";
       }
-
-      // Image extraction logic remains the same...
     })
   );
 
   return articles;
 }
 
-// Route
-app.get("/", async (req, res) => {
+app.get("/", async (req,res) => {
   try {
     const articles = await getArticles();
     res.render("index", { articles });
-  } catch (error) {
-    console.error("Error in main route:", error);
+  } catch (err) {
+    console.error("Main route error:", err);
     res.status(500).send("Error loading news articles");
   }
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`HabariHub running on port ${PORT}`));
