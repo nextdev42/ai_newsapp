@@ -156,11 +156,12 @@ async function getArticles() {
     international: [
       "https://feeds.bbci.co.uk/news/rss.xml",
       "http://rss.cnn.com/rss/edition.rss",
+      "https://feeds.reuters.com/reuters/topNews",
       "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
     ],
     sports: [
       "https://www.bbc.com/sport/africa/rss.xml",
-      
+      "https://www.goal.com/rss"
     ]
   };
 
