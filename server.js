@@ -24,7 +24,7 @@ const translationCache = {};
 const CACHE_EXPIRY = 30 * 60 * 1000; // 30 minutes
 
 async function translateToSwahili(text) {
-  if (!text || text.trim() === "") return "";
+  if (!text || text.trim() === "") return "Hakuna maelezo";
   
   const now = Date.now();
   if (translationCache[text] && (now - translationCache[text].timestamp) < CACHE_EXPIRY) {
@@ -33,7 +33,7 @@ async function translateToSwahili(text) {
 
   try {
     const cleanText = text.replace(/[^\w\s.,!?;:'"-]/gi, '').trim();
-    if (!cleanText) return "";
+    if (!cleanText) return "Hakuna maelezo";
     
     const res = await translate(cleanText, { to: "sw" });
     const translation = res.text;
@@ -86,55 +86,35 @@ async function fetchFeed(url) {
 
 // Enhanced image extraction for RSS items
 function extractImageFromItem(item) {
-  console.log("Extracting image for item:", item.title);
-  
-  // Check enclosure (common in RSS feeds)
-  if (item.enclosure && item.enclosure.url) {
-    console.log("Found image in enclosure:", item.enclosure.url);
-    return item.enclosure.url;
-  }
-  
-  // Check media content
-  if (item.mediaContent && item.mediaContent.$ && item.mediaContent.$.url) {
-    console.log("Found image in mediaContent:", item.mediaContent.$.url);
-    return item.mediaContent.$.url;
-  }
-  
-  // Check media thumbnail
-  if (item.mediaThumbnail && item.mediaThumbnail.$ && item.mediaThumbnail.$.url) {
-    console.log("Found image in mediaThumbnail:", item.mediaThumbnail.$.url);
-    return item.mediaThumbnail.$.url;
-  }
-  
-  // Check content for images
-  if (item.content) {
-    const imgMatch = item.content.match(/<img[^>]+src="([^">]+)"/);
+  const imageSources = [
+    // Check multiple possible image sources
+    item.enclosure?.url,
+    item.mediaContent?.$?.url,
+    item.mediaThumbnail?.$?.url,
+    item['media:content']?.$?.url,
+    item['media:thumbnail']?.$?.url,
+  ].filter(Boolean);
+
+  // Check HTML content for images
+  const contentFields = [
+    item.content,
+    item.contentEncoded,
+    item.description,
+    item.summary
+  ].filter(Boolean);
+
+  for (const content of contentFields) {
+    const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
     if (imgMatch && imgMatch[1]) {
-      console.log("Found image in content:", imgMatch[1]);
-      return imgMatch[1];
+      imageSources.push(imgMatch[1]);
     }
   }
-  
-  // Check content encoded for images
-  if (item.contentEncoded) {
-    const imgMatch = item.contentEncoded.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-      console.log("Found image in contentEncoded:", imgMatch[1]);
-      return imgMatch[1];
-    }
-  }
-  
-  // Check description for images
-  if (item.description) {
-    const imgMatch = item.description.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-      console.log("Found image in description:", imgMatch[1]);
-      return imgMatch[1];
-    }
-  }
-  
-  console.log("No image found for item");
-  return null;
+
+  // Return the first valid image found
+  return imageSources.find(src => 
+    src.startsWith('http') && 
+    (src.match(/\.(jpg|jpeg|png|gif|webp)/i) || src.includes('image'))
+  ) || null;
 }
 
 // Enhanced Tanzania news scraping with detailed content extraction
@@ -151,24 +131,17 @@ async function scrapeTanzaniaNews() {
     const $ = cheerio.load(data);
     const articles = [];
     
-    // Look for article containers with more specific selectors
-    $('.article, .news-item, .post, .story').each((i, el) => {
-      const titleElement = $(el).find('h1, h2, h3, .title, .headline').first();
-      const title = titleElement.text().trim();
+    // More specific selectors for The Citizen
+    $('.article-item, .news-item, .post-item, .story-item').each((i, el) => {
+      const title = $(el).find('h2, h3, .title, .headline').first().text().trim();
+      const link = $(el).find('a').first().attr('href');
       
-      if (title && title.length > 10 && title.length < 200 && 
-          !title.includes('ADVERTISEMENT') && !title.match(/^\d+$/)) {
+      if (title && link && title.length > 10 && title.length < 200) {
+        const fullUrl = link.startsWith('http') ? link : `https://www.thecitizen.co.tz${link.startsWith('/') ? link : '/' + link}`;
         
-        // Try to find a link
-        let url = $(el).find('a').first().attr('href');
-        const fullUrl = url ? 
-          (url.startsWith('http') ? url : `https://www.thecitizen.co.tz${url.startsWith('/') ? url : '/' + url}`) : 
-          'https://www.thecitizen.co.tz';
-        
-        // Try to find a description/summary - more thorough approach
+        // Try to find a description
         let description = $(el).find('p, .summary, .excerpt, .description').first().text().trim();
         if (!description || description.length < 20) {
-          // Try to get the first paragraph that's not too short
           $(el).find('p').each((i, p) => {
             const text = $(p).text().trim();
             if (text.length > 50 && !description) {
@@ -182,7 +155,7 @@ async function scrapeTanzaniaNews() {
           description = "Habari za Tanzania kutoka The Citizen";
         }
         
-        // Try to find an image - more thorough approach
+        // Try to find an image
         let image = $(el).find('img').first().attr('src');
         if (image && !image.startsWith('http')) {
           image = `https://www.thecitizen.co.tz${image.startsWith('/') ? image : '/' + image}`;
@@ -209,14 +182,14 @@ async function scrapeTanzaniaNews() {
       }
     });
     
-    // If we didn't find articles using containers, try a different approach
-    if (articles.length === 0) {
-      $('a').each((i, el) => {
-        const href = $(el).attr('href');
+    // If we didn't find enough articles, try alternative selectors
+    if (articles.length < 3) {
+      $('a[href*="/news/"], a[href*="/article/"]').each((i, el) => {
         const title = $(el).text().trim();
+        const href = $(el).attr('href');
         
-        if (href && (href.includes('/news/') || href.includes('/article/')) && 
-            title && title.length > 10 && title.length < 200) {
+        if (title && href && title.length > 10 && title.length < 200 && 
+            !title.includes('ADVERTISEMENT')) {
           const fullUrl = href.startsWith('http') ? href : `https://www.thecitizen.co.tz${href.startsWith('/') ? href : '/' + href}`;
           
           articles.push({
@@ -260,22 +233,17 @@ async function scrapeEastAfricaNews() {
     const $ = cheerio.load(data);
     const articles = [];
     
-    // Try multiple approaches to find articles
-    $('.story, .article, .news-item, a[href*="/news/"]').each((i, el) => {
-      const title = $(el).text().trim();
+    // More specific selectors for The East African
+    $('.story, .article, .news-item, .headline').each((i, el) => {
+      const title = $(el).find('h1, h2, h3, .title').first().text().trim();
+      const link = $(el).find('a').first().attr('href');
       
-      if (title && title.length > 10 && title.length < 200 && 
-          !title.includes('ADVERTISEMENT') && !title.match(/^\d+$/)) {
-        
-        let url = $(el).attr('href') || $(el).find('a').attr('href');
-        const fullUrl = url ? 
-          (url.startsWith('http') ? url : `https://www.theeastafrican.co.ke${url.startsWith('/') ? url : '/' + url}`) : 
-          'https://www.theeastafrican.co.ke';
+      if (title && link && title.length > 10 && title.length < 200) {
+        const fullUrl = link.startsWith('http') ? link : `https://www.theeastafrican.co.ke${link.startsWith('/') ? link : '/' + link}`;
         
         // Try to find a description
-        let description = $(el).find('p').first().text().trim();
+        let description = $(el).find('p, .summary').first().text().trim();
         if (!description || description.length < 20) {
-          // Try to get the first paragraph that's not too short
           $(el).find('p').each((i, p) => {
             const text = $(p).text().trim();
             if (text.length > 50 && !description) {
@@ -289,14 +257,14 @@ async function scrapeEastAfricaNews() {
         }
         
         // Try to find an image
-        let image = $(el).find('img').attr('src');
+        let image = $(el).find('img').first().attr('src');
         if (image && !image.startsWith('http')) {
           image = `https://www.theeastafrican.co.ke${image.startsWith('/') ? image : '/' + image}`;
         }
         
         // If no image found, try data-src or other attributes
         if (!image) {
-          image = $(el).find('img').attr('data-src');
+          image = $(el).find('img').first().attr('data-src');
           if (image && !image.startsWith('http')) {
             image = `https://www.theeastafrican.co.ke${image.startsWith('/') ? image : '/' + image}`;
           }
@@ -314,31 +282,6 @@ async function scrapeEastAfricaNews() {
         });
       }
     });
-    
-    // If still no articles, try a more direct approach
-    if (articles.length === 0) {
-      $('h1, h2, h3').each((i, el) => {
-        const title = $(el).text().trim();
-        if (title && title.length > 10 && title.length < 200) {
-          const parent = $(el).parent();
-          let url = parent.is('a') ? parent.attr('href') : parent.find('a').attr('href');
-          const fullUrl = url ? 
-            (url.startsWith('http') ? url : `https://www.theeastafrican.co.ke${url.startsWith('/') ? url : '/' + url}`) : 
-            'https://www.theeastafrican.co.ke';
-          
-          articles.push({
-            title,
-            link: fullUrl,
-            contentSnippet: "Habari za Afrika Mashariki",
-            pubDate: new Date().toISOString(),
-            source: "The East African",
-            category: "eastAfrica",
-            needsTranslation: !isSwahili(title),
-            image: null
-          });
-        }
-      });
-    }
     
     const uniqueArticles = articles.filter((article, index, self) =>
       index === self.findIndex(a => a.title === article.title)
@@ -386,23 +329,20 @@ async function scrapeESPNNews() {
     const $ = cheerio.load(data);
     const articles = [];
     
-    // Look for sports news items
-    $('.contentItem, .story, a[href*="/story/"]').each((i, el) => {
-      const title = $(el).text().trim();
+    // More specific selectors for ESPN
+    $('.contentItem__contentWrapper, .Story__Story__content, .headlineStack__listItem').each((i, el) => {
+      const title = $(el).find('h1, h2, h3, .contentItem__title, .Story__Headline').first().text().trim();
+      const link = $(el).find('a').first().attr('href');
       
-      if (title && title.length > 10 && title.length < 200 && 
+      if (title && link && title.length > 10 && title.length < 200 && 
           (title.toLowerCase().includes('sport') || title.toLowerCase().includes('game') || 
            title.toLowerCase().includes('player') || title.toLowerCase().includes('team'))) {
         
-        let url = $(el).attr('href');
-        const fullUrl = url ? 
-          (url.startsWith('http') ? url : `https://www.espn.com${url.startsWith('/') ? url : '/' + url}`) : 
-          'https://www.espn.com';
+        const fullUrl = link.startsWith('http') ? link : `https://www.espn.com${link.startsWith('/') ? link : '/' + link}`;
         
         // Try to find a description
-        let description = $(el).find('p').first().text().trim();
+        let description = $(el).find('p, .contentItem__subhead').first().text().trim();
         if (!description || description.length < 20) {
-          // Try to get the first paragraph that's not too short
           $(el).find('p').each((i, p) => {
             const text = $(p).text().trim();
             if (text.length > 50 && !description) {
@@ -416,14 +356,14 @@ async function scrapeESPNNews() {
         }
         
         // Try to find an image
-        let image = $(el).find('img').attr('src');
+        let image = $(el).find('img').first().attr('src');
         if (image && !image.startsWith('http')) {
           image = `https://www.espn.com${image.startsWith('/') ? image : '/' + image}`;
         }
         
         // If no image found, try data-src or other attributes
         if (!image) {
-          image = $(el).find('img').attr('data-src');
+          image = $(el).find('img').first().attr('data-src');
           if (image && !image.startsWith('http')) {
             image = `https://www.espn.com${image.startsWith('/') ? image : '/' + image}`;
           }
@@ -518,6 +458,13 @@ async function getArticles() {
 
   console.log(`Final articles count: ${articles.length}`);
 
+  // Add default image for articles without images
+  articles.forEach(article => {
+    if (!article.image) {
+      article.image = "/default-news.jpg"; // Make sure to add this image to your public folder
+    }
+  });
+
   // Translate
   await Promise.all(
     articles.map(async a => {
@@ -525,17 +472,10 @@ async function getArticles() {
         const cleanTitle = stripHTML(a.title || "");
         const cleanDesc = stripHTML(a.contentSnippet || a.content || a.summary || a.description || "");
         a.title_sw = await translateToSwahili(cleanTitle);
-        a.description_sw = await translateToSwahili(cleanDesc.slice(0,200));
+        a.description_sw = await translateToSwahili(cleanDesc.slice(0,200) || "Hakuna maelezo");
       } else {
         a.title_sw = a.title;
-        a.description_sw = a.contentSnippet || a.description || "";
-      }
-      
-      // Log image information for debugging
-      if (a.image) {
-        console.log(`Image found for "${a.title}": ${a.image}`);
-      } else {
-        console.log(`No image found for "${a.title}"`);
+        a.description_sw = a.contentSnippet || a.description || "Hakuna maelezo";
       }
     })
   );
