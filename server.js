@@ -125,7 +125,20 @@ app.get("/news/sw", async (req, res) => {
     res.status(500).send("❌ OPENAI_API_KEY is missing");
   }
 });
-
+app.get("/test-translate", async (req, res) => {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: "Translate to Swahili" },
+        { role: "user", content: "Hello world" }
+      ]
+    });
+    res.send(response.choices[0].message.content);
+  } catch (err) {
+    res.status(500).send(`Error: ${err.message}`);
+  }
+});
 // Start server
 app.listen(PORT, () => {
   logger.info(`HabariHub running on http://localhost:${PORT}`);
