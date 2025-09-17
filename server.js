@@ -57,7 +57,7 @@ async function getArticles() {
   const feedUrls = [
     "https://feeds.bbci.co.uk/news/rss.xml", // BBC
     "http://rss.cnn.com/rss/edition.rss", // CNN
-    "https://www.cnbc.com/id/100003114/device/rss/rss.html", // CNBC
+    "https://www.cnbc.com/id/100003114/device/rss/rss.html" // CNBC
     
 
   let articles = [];
