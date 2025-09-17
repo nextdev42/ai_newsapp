@@ -86,35 +86,42 @@ async function fetchFeed(url) {
 
 // Enhanced image extraction for RSS items
 function extractImageFromItem(item) {
-  const imageSources = [
-    // Check multiple possible image sources
-    item.enclosure?.url,
-    item.mediaContent?.$?.url,
-    item.mediaThumbnail?.$?.url,
-    item['media:content']?.$?.url,
-    item['media:thumbnail']?.$?.url,
-  ].filter(Boolean);
+  let imageSources = [];
 
-  // Check HTML content for images
-  const contentFields = [
-    item.content,
-    item.contentEncoded,
-    item.description,
-    item.summary
-  ].filter(Boolean);
+  // Handle RSS parser custom fields
+  if (item.enclosure?.url) imageSources.push(item.enclosure.url);
 
+  if (Array.isArray(item.mediaContent)) {
+    item.mediaContent.forEach(m => {
+      if (m.$?.url) imageSources.push(m.$.url);
+    });
+  }
+
+  if (Array.isArray(item.mediaThumbnail)) {
+    item.mediaThumbnail.forEach(m => {
+      if (m.$?.url) imageSources.push(m.$.url);
+    });
+  }
+
+  // Check standard fields
+  if (item["media:content"]?.$?.url) imageSources.push(item["media:content"].$.url);
+  if (item["media:thumbnail"]?.$?.url) imageSources.push(item["media:thumbnail"].$.url);
+
+  // Parse HTML content for images
+  const contentFields = [item.content, item.contentEncoded, item.description, item.summary].filter(Boolean);
   for (const content of contentFields) {
-    const imgMatch = content.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-      imageSources.push(imgMatch[1]);
+    const imgMatch = content.match(/<img[^>]+(src|data-src)="([^">]+)"/i);
+    if (imgMatch && imgMatch[2]) {
+      imageSources.push(imgMatch[2]);
     }
   }
 
-  // Return the first valid image found
-  return imageSources.find(src => 
-    src.startsWith('http') && 
-    (src.match(/\.(jpg|jpeg|png|gif|webp)/i) || src.includes('image'))
-  ) || null;
+  // Pick the first valid one
+  const validImage = imageSources.find(src =>
+    src.startsWith("http") && (/\.(jpg|jpeg|png|gif|webp)/i.test(src) || src.includes("image"))
+  );
+
+  return validImage || null;
 }
 
 // Enhanced Tanzania news scraping with detailed content extraction
