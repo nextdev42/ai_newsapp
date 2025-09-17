@@ -66,7 +66,6 @@ async function getArticles() {
     "https://feeds.bbci.co.uk/news/rss.xml", // BBC
     "http://rss.cnn.com/rss/edition.rss", // CNN
     "https://www.cnbc.com/id/10000664/device/rss/rss.html", // Updated CNBC URL
-    "https://feeds.reuters.com/reuters/topNews", // Reuters Top News
     "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" // New York Times as alternative
   ];
 
