@@ -156,6 +156,13 @@
             font-weight: bold;
         }
         
+        .scraped-notice {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+        
         footer {
             text-align: center;
             padding: 2rem 1rem;
@@ -209,12 +216,18 @@
                         <span class="news-source"><%= article.source %></span>
                         <h3 class="news-title"><%= article.title_sw %></h3>
                         <p class="news-title-en"><%= article.title %></p>
-                        <p class="news-desc"><%= article.description_sw %></p>
+                        <% if (article.description_sw) { %>
+                            <p class="news-desc"><%= article.description_sw %></p>
+                        <% } %>
                         
                         <div class="news-meta">
                             <span><%= new Date(article.pubDate).toLocaleDateString('sw-TZ') %></span>
                             <span class="news-category"><%= article.category %></span>
                         </div>
+                        
+                        <% if (article.link && article.link.includes('thecitizen') || article.link.includes('theeastafrican') || article.link.includes('espn')) { %>
+                            <p class="scraped-notice">Imepakuliwa moja kwa moja kutoka tovuti</p>
+                        <% } %>
                     </div>
                 </div>
             <% }); %>
@@ -223,7 +236,7 @@
     
     <footer>
         <p>HabariHub &copy; 2023 - Huduma bora kwa habari za Tanzania na duniani</p>
-        <p>Powered by BBC, CNN, Reuters, The Citizen, Nation Media, na vyanzo vingine vya habari</p>
+        <p>Powered by BBC, CNN, Reuters, The Citizen, The East African, ESPN, na vyanzo vingine vya habari</p>
     </footer>
 
     <script>
