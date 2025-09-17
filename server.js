@@ -4,7 +4,6 @@ import axios from "axios";
 import translate from "@iamtraction/google-translate";
 
 const app = express();
-// Configure parser to handle media content
 const parser = new Parser({
   customFields: {
     item: [
@@ -61,46 +60,64 @@ async function fetchFeed(url) {
 
 // Fetch na process articles
 async function getArticles() {
-  // Updated list of RSS feed URLs with working ones
-  const feedUrls = [
-    "https://feeds.bbci.co.uk/news/rss.xml", // BBC
-    "http://rss.cnn.com/rss/edition.rss", // CNN
-    "https://www.cnbc.com/id/10000664/device/rss/rss.html", // Updated CNBC URL
-    "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" // New York Times as alternative
-  ];
+  // Categorize feeds by type
+  const feedCategories = {
+    international: [
+      "https://feeds.bbci.co.uk/news/rss.xml", // BBC
+      "http://rss.cnn.com/rss/edition.rss", // CNN
+      "https://feeds.reuters.com/reuters/topNews", // Reuters Top News
+      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" // New York Times
+    ],
+    tanzania: [
+      "https://www.thecitizen.co.tz/rss", // The Citizen Tanzania
+      "https://www.habari.co.tz/feed", // Habari Tanzania
+      "https://www.ippmedia.com/rss" // IPP Media Tanzania
+    ],
+    eastAfrica: [
+      "https://www.theeastafrican.co.ke/rss", // The East African
+      "https://www.nation.co.ke/rss", // Daily Nation Kenya
+      "https://www.monitor.co.ug/rss" // Daily Monitor Uganda
+    ],
+    sports: [
+      "https://www.bbc.com/sport/africa/rss.xml", // BBC Sport Africa
+      "https://www.supersport.com/rss", // SuperSport
+      "https://www.citizensports.co.tz/feed" // Citizen Sports Tanzania
+    ]
+  };
 
   let articles = [];
   const feedResults = [];
 
-  // Fetch and parse each feed
-  for (const url of feedUrls) {
-    const feed = await fetchFeed(url);
-    feedResults.push({
-      url,
-      title: feed.title,
-      itemCount: feed.items ? feed.items.length : 0,
-      failed: feed.failed || false
-    });
-    
-    if (feed.items && feed.items.length > 0) {
-      // Add source information to each article
-      const sourceArticles = feed.items.map(item => {
-        return {
-          ...item,
-          source: feed.title || url,
-          sourceUrl: url
-        };
+  // Fetch and parse each feed from all categories
+  for (const category in feedCategories) {
+    for (const url of feedCategories[category]) {
+      const feed = await fetchFeed(url);
+      feedResults.push({
+        url,
+        category,
+        title: feed.title,
+        itemCount: feed.items ? feed.items.length : 0,
+        failed: feed.failed || false
       });
       
-      articles = articles.concat(sourceArticles);
-      console.log(`Added ${feed.items.length} articles from ${feed.title || url}`);
-    } else {
-      console.warn(`No items found in feed: ${url}`);
+      if (feed.items && feed.items.length > 0) {
+        // Add source information and category to each article
+        const sourceArticles = feed.items.map(item => {
+          return {
+            ...item,
+            source: feed.title || url,
+            sourceUrl: url,
+            category: category
+          };
+        });
+        
+        articles = articles.concat(sourceArticles);
+        console.log(`Added ${feed.items.length} articles from ${feed.title || url} (${category})`);
+      } else {
+        console.warn(`No items found in feed: ${url}`);
+      }
     }
   }
-
-  // Debug: Show what feeds we got
-  console.log("Feed results:", feedResults);
 
   // Filter articles published in the last 24 hours
   const now = new Date();
@@ -114,22 +131,22 @@ async function getArticles() {
 
   console.log(`Found ${articles.length} articles from last 24 hours`);
 
-  // Group articles by source for debugging
-  const articlesBySource = {};
+  // Group articles by category for debugging
+  const articlesByCategory = {};
   articles.forEach(article => {
-    const source = article.source;
-    if (!articlesBySource[source]) articlesBySource[source] = 0;
-    articlesBySource[source]++;
+    const category = article.category;
+    if (!articlesByCategory[category]) articlesByCategory[category] = 0;
+    articlesByCategory[category]++;
   });
-  console.log("Articles by source:", articlesBySource);
+  console.log("Articles by category:", articlesByCategory);
 
   // Sort by date, newest first
   articles.sort((a, b) => {
     return new Date(b.pubDate) - new Date(a.pubDate);
   });
 
-  // Limit to top 20 recent articles
-  articles = articles.slice(0, 20);
+  // Limit to top 30 recent articles
+  articles = articles.slice(0, 30);
 
   // Translate titles and descriptions
   await Promise.all(
