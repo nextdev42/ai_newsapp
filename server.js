@@ -66,6 +66,7 @@ function stripHTML(html) {
   return html.replace(/<[^>]*>?/gm, "");
 }
 
+// Enhanced fetchFeed with better error handling
 async function fetchFeed(url) {
   try {
     console.log(`Fetching feed from: ${url}`);
@@ -83,7 +84,60 @@ async function fetchFeed(url) {
   }
 }
 
-// Improved Tanzania news scraping with description extraction
+// Enhanced image extraction for RSS items
+function extractImageFromItem(item) {
+  console.log("Extracting image for item:", item.title);
+  
+  // Check enclosure (common in RSS feeds)
+  if (item.enclosure && item.enclosure.url) {
+    console.log("Found image in enclosure:", item.enclosure.url);
+    return item.enclosure.url;
+  }
+  
+  // Check media content
+  if (item.mediaContent && item.mediaContent.$ && item.mediaContent.$.url) {
+    console.log("Found image in mediaContent:", item.mediaContent.$.url);
+    return item.mediaContent.$.url;
+  }
+  
+  // Check media thumbnail
+  if (item.mediaThumbnail && item.mediaThumbnail.$ && item.mediaThumbnail.$.url) {
+    console.log("Found image in mediaThumbnail:", item.mediaThumbnail.$.url);
+    return item.mediaThumbnail.$.url;
+  }
+  
+  // Check content for images
+  if (item.content) {
+    const imgMatch = item.content.match(/<img[^>]+src="([^">]+)"/);
+    if (imgMatch && imgMatch[1]) {
+      console.log("Found image in content:", imgMatch[1]);
+      return imgMatch[1];
+    }
+  }
+  
+  // Check content encoded for images
+  if (item.contentEncoded) {
+    const imgMatch = item.contentEncoded.match(/<img[^>]+src="([^">]+)"/);
+    if (imgMatch && imgMatch[1]) {
+      console.log("Found image in contentEncoded:", imgMatch[1]);
+      return imgMatch[1];
+    }
+  }
+  
+  // Check description for images
+  if (item.description) {
+    const imgMatch = item.description.match(/<img[^>]+src="([^">]+)"/);
+    if (imgMatch && imgMatch[1]) {
+      console.log("Found image in description:", imgMatch[1]);
+      return imgMatch[1];
+    }
+  }
+  
+  console.log("No image found for item");
+  return null;
+}
+
+// Enhanced Tanzania news scraping with detailed content extraction
 async function scrapeTanzaniaNews() {
   try {
     console.log("Scraping Tanzania news from The Citizen...");
@@ -97,8 +151,8 @@ async function scrapeTanzaniaNews() {
     const $ = cheerio.load(data);
     const articles = [];
     
-    // Look for article containers
-    $('.article, .news-item, .post').each((i, el) => {
+    // Look for article containers with more specific selectors
+    $('.article, .news-item, .post, .story').each((i, el) => {
       const titleElement = $(el).find('h1, h2, h3, .title, .headline').first();
       const title = titleElement.text().trim();
       
@@ -111,16 +165,35 @@ async function scrapeTanzaniaNews() {
           (url.startsWith('http') ? url : `https://www.thecitizen.co.tz${url.startsWith('/') ? url : '/' + url}`) : 
           'https://www.thecitizen.co.tz';
         
-        // Try to find a description/summary
-        let description = $(el).find('p, .summary, .excerpt').first().text().trim();
+        // Try to find a description/summary - more thorough approach
+        let description = $(el).find('p, .summary, .excerpt, .description').first().text().trim();
+        if (!description || description.length < 20) {
+          // Try to get the first paragraph that's not too short
+          $(el).find('p').each((i, p) => {
+            const text = $(p).text().trim();
+            if (text.length > 50 && !description) {
+              description = text;
+            }
+          });
+        }
+        
+        // Fallback description
         if (!description || description.length < 20) {
           description = "Habari za Tanzania kutoka The Citizen";
         }
         
-        // Try to find an image
+        // Try to find an image - more thorough approach
         let image = $(el).find('img').first().attr('src');
         if (image && !image.startsWith('http')) {
           image = `https://www.thecitizen.co.tz${image.startsWith('/') ? image : '/' + image}`;
+        }
+        
+        // If no image found, try data-src or other attributes
+        if (!image) {
+          image = $(el).find('img').first().attr('data-src');
+          if (image && !image.startsWith('http')) {
+            image = `https://www.thecitizen.co.tz${image.startsWith('/') ? image : '/' + image}`;
+          }
         }
         
         articles.push({
@@ -142,7 +215,8 @@ async function scrapeTanzaniaNews() {
         const href = $(el).attr('href');
         const title = $(el).text().trim();
         
-        if (href && href.includes('/news/') && title && title.length > 10 && title.length < 200) {
+        if (href && (href.includes('/news/') || href.includes('/article/')) && 
+            title && title.length > 10 && title.length < 200) {
           const fullUrl = href.startsWith('http') ? href : `https://www.thecitizen.co.tz${href.startsWith('/') ? href : '/' + href}`;
           
           articles.push({
@@ -164,6 +238,7 @@ async function scrapeTanzaniaNews() {
       index === self.findIndex(a => a.title === article.title)
     );
     
+    console.log(`Found ${uniqueArticles.length} Tanzanian articles`);
     return uniqueArticles.slice(0, 5);
   } catch (err) {
     console.error("Tanzania scraping error:", err.message);
@@ -171,7 +246,7 @@ async function scrapeTanzaniaNews() {
   }
 }
 
-// Improved East Africa news scraping
+// Enhanced East Africa news scraping
 async function scrapeEastAfricaNews() {
   try {
     console.log("Scraping East Africa news from The East African...");
@@ -200,6 +275,16 @@ async function scrapeEastAfricaNews() {
         // Try to find a description
         let description = $(el).find('p').first().text().trim();
         if (!description || description.length < 20) {
+          // Try to get the first paragraph that's not too short
+          $(el).find('p').each((i, p) => {
+            const text = $(p).text().trim();
+            if (text.length > 50 && !description) {
+              description = text;
+            }
+          });
+        }
+        
+        if (!description || description.length < 20) {
           description = "Habari za Afrika Mashariki kutoka The East African";
         }
         
@@ -207,6 +292,14 @@ async function scrapeEastAfricaNews() {
         let image = $(el).find('img').attr('src');
         if (image && !image.startsWith('http')) {
           image = `https://www.theeastafrican.co.ke${image.startsWith('/') ? image : '/' + image}`;
+        }
+        
+        // If no image found, try data-src or other attributes
+        if (!image) {
+          image = $(el).find('img').attr('data-src');
+          if (image && !image.startsWith('http')) {
+            image = `https://www.theeastafrican.co.ke${image.startsWith('/') ? image : '/' + image}`;
+          }
         }
         
         articles.push({
@@ -251,6 +344,7 @@ async function scrapeEastAfricaNews() {
       index === self.findIndex(a => a.title === article.title)
     );
     
+    console.log(`Found ${uniqueArticles.length} East African articles`);
     return uniqueArticles.slice(0, 5);
   } catch (err) {
     console.error("East Africa scraping error:", err.message);
@@ -260,12 +354,15 @@ async function scrapeEastAfricaNews() {
       console.log("Trying RSS fallback for East Africa news...");
       const feed = await fetchFeed("https://www.theeastafrican.co.ke/rss");
       if (feed.items && feed.items.length > 0) {
-        return feed.items.slice(0, 5).map(item => ({
+        const articles = feed.items.slice(0, 5).map(item => ({
           ...item,
           source: "The East African (RSS)",
           category: "eastAfrica",
-          needsTranslation: true
+          needsTranslation: true,
+          image: extractImageFromItem(item)
         }));
+        console.log(`Found ${articles.length} East African articles from RSS`);
+        return articles;
       }
     } catch (rssError) {
       console.error("RSS fallback also failed:", rssError.message);
@@ -275,7 +372,7 @@ async function scrapeEastAfricaNews() {
   }
 }
 
-// Improved ESPN news scraping
+// Enhanced ESPN news scraping
 async function scrapeESPNNews() {
   try {
     console.log("Scraping ESPN news...");
@@ -305,6 +402,16 @@ async function scrapeESPNNews() {
         // Try to find a description
         let description = $(el).find('p').first().text().trim();
         if (!description || description.length < 20) {
+          // Try to get the first paragraph that's not too short
+          $(el).find('p').each((i, p) => {
+            const text = $(p).text().trim();
+            if (text.length > 50 && !description) {
+              description = text;
+            }
+          });
+        }
+        
+        if (!description || description.length < 20) {
           description = "Habari za michezo kutoka ESPN";
         }
         
@@ -312,6 +419,14 @@ async function scrapeESPNNews() {
         let image = $(el).find('img').attr('src');
         if (image && !image.startsWith('http')) {
           image = `https://www.espn.com${image.startsWith('/') ? image : '/' + image}`;
+        }
+        
+        // If no image found, try data-src or other attributes
+        if (!image) {
+          image = $(el).find('img').attr('data-src');
+          if (image && !image.startsWith('http')) {
+            image = `https://www.espn.com${image.startsWith('/') ? image : '/' + image}`;
+          }
         }
         
         articles.push({
@@ -331,42 +446,12 @@ async function scrapeESPNNews() {
       index === self.findIndex(a => a.title === article.title)
     );
     
+    console.log(`Found ${uniqueArticles.length} ESPN articles`);
     return uniqueArticles.slice(0, 5);
   } catch (err) {
     console.error("ESPN scraping error:", err.message);
     return [];
   }
-}
-
-// Enhanced image extraction function
-function extractImageFromItem(item) {
-  if (item.enclosure && item.enclosure.url) {
-    return item.enclosure.url;
-  }
-  
-  if (item.mediaContent && item.mediaContent.$ && item.mediaContent.$.url) {
-    return item.mediaContent.$.url;
-  }
-  
-  if (item.mediaThumbnail && item.mediaThumbnail.$ && item.mediaThumbnail.$.url) {
-    return item.mediaThumbnail.$.url;
-  }
-  
-  if (item.content && item.content.includes("<img")) {
-    const imgMatch = item.content.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-      return imgMatch[1];
-    }
-  }
-  
-  if (item.contentEncoded && item.contentEncoded.includes("<img")) {
-    const imgMatch = item.contentEncoded.match(/<img[^>]+src="([^">]+)"/);
-    if (imgMatch && imgMatch[1]) {
-      return imgMatch[1];
-    }
-  }
-  
-  return null;
 }
 
 async function getArticles() {
@@ -416,18 +501,22 @@ async function getArticles() {
   ]);
   
   articles = articles.concat(tanzaniaArticles, eastAfricaArticles, espnArticles);
-  console.log(`Added ${tanzaniaArticles.length} Tanzanian articles, ${eastAfricaArticles.length} East African articles, ${espnArticles.length} ESPN articles`);
+  console.log(`Total articles: ${articles.length} (${tanzaniaArticles.length} Tanzanian, ${eastAfricaArticles.length} East African, ${espnArticles.length} ESPN)`);
 
   // Filter last 48 hours
   const now = new Date();
   const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
   articles = articles.filter(a => a.pubDate && new Date(a.pubDate) > twoDaysAgo);
 
+  console.log(`Articles after time filter: ${articles.length}`);
+
   // Sort newest first
   articles.sort((a,b) => new Date(b.pubDate) - new Date(a.pubDate));
 
   // Limit top 30
   articles = articles.slice(0,30);
+
+  console.log(`Final articles count: ${articles.length}`);
 
   // Translate
   await Promise.all(
@@ -440,6 +529,13 @@ async function getArticles() {
       } else {
         a.title_sw = a.title;
         a.description_sw = a.contentSnippet || a.description || "";
+      }
+      
+      // Log image information for debugging
+      if (a.image) {
+        console.log(`Image found for "${a.title}": ${a.image}`);
+      } else {
+        console.log(`No image found for "${a.title}"`);
       }
     })
   );
