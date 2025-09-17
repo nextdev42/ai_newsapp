@@ -51,14 +51,14 @@ async function fetchFeed(url) {
   }
 }
 
-// Fetch na process articles
+// Fetch and process articles
 async function getArticles() {
-  // Define the list of RSS feed URLs
+  // Fixed: proper closing bracket in feedUrls array
   const feedUrls = [
     "https://feeds.bbci.co.uk/news/rss.xml", // BBC
-    "http://rss.cnn.com/rss/edition.rss", // CNN
-    "https://www.cnbc.com/id/100003114/device/rss/rss.html" // CNBC
-    
+    "http://rss.cnn.com/rss/edition.rss",   // CNN
+    "https://www.cnbc.com/id/100003114/device/rss/rss.xml" // CNBC
+  ];
 
   let articles = [];
   const feedResults = [];
@@ -75,13 +75,11 @@ async function getArticles() {
     
     if (feed.items && feed.items.length > 0) {
       // Add source information to each article
-      const sourceArticles = feed.items.map(item => {
-        return {
-          ...item,
-          source: feed.title || url,
-          sourceUrl: url
-        };
-      });
+      const sourceArticles = feed.items.map(item => ({
+        ...item,
+        source: feed.title || url,
+        sourceUrl: url
+      }));
       
       articles = articles.concat(sourceArticles);
       console.log(`Added ${feed.items.length} articles from ${feed.title || url}`);
@@ -90,7 +88,6 @@ async function getArticles() {
     }
   }
 
-  // Debug: Show what feeds we got
   console.log("Feed results:", feedResults);
 
   // Filter articles published in the last 24 hours
@@ -106,9 +103,7 @@ async function getArticles() {
   console.log(`Found ${articles.length} articles from last 24 hours`);
 
   // Sort by date, newest first
-  articles.sort((a, b) => {
-    return new Date(b.pubDate) - new Date(a.pubDate);
-  });
+  articles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
   // Limit to top 20 recent articles
   articles = articles.slice(0, 20);
@@ -130,13 +125,8 @@ async function getArticles() {
       } else if (article["media:content"] && article["media:content"].url) {
         article.image = article["media:content"].url;
       } else if (article.content && article.content.includes("<img")) {
-        // Try to extract image from content
         const imgMatch = article.content.match(/<img[^>]+src="([^">]+)"/);
-        if (imgMatch && imgMatch[1]) {
-          article.image = imgMatch[1];
-        } else {
-          article.image = null;
-        }
+        article.image = imgMatch ? imgMatch[1] : null;
       } else {
         article.image = null;
       }
