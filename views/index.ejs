@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HabariHub - Habari za Kimataifa na za Tanzania</title>
+    <title>HabariHub - Habari za Tanzania na Kimataifa</title>
     <style>
         :root {
             --primary: #1a73e8;
@@ -44,6 +44,14 @@
         .tagline {
             font-size: 1rem;
             opacity: 0.9;
+        }
+        
+        .language-notice {
+            background-color: #ffe066;
+            color: #333;
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.9rem;
         }
         
         .container {
@@ -126,13 +134,6 @@
             color: var(--dark);
         }
         
-        .news-title-en {
-            font-size: 0.9rem;
-            color: var(--gray);
-            margin-bottom: 0.5rem;
-            font-style: italic;
-        }
-        
         .news-desc {
             font-size: 0.9rem;
             color: var(--gray);
@@ -161,6 +162,12 @@
             color: #888;
             margin-top: 0.5rem;
             font-style: italic;
+        }
+        
+        .translation-notice {
+            font-size: 0.7rem;
+            color: #e74c3c;
+            margin-top: 0.5rem;
         }
         
         footer {
@@ -194,6 +201,10 @@
         <div class="tagline">Ukurasa wako wa habari za Tanzania na kimataifa</div>
     </header>
     
+    <div class="language-notice">
+        Habari zote zimetafsiriwa kwa Kiswahili kwa uhakika wa wasomaji wetu.
+    </div>
+    
     <div class="container">
         <div class="category-tabs">
             <div class="category-tab active" data-category="all">Habari Zote</div>
@@ -215,7 +226,6 @@
                     <div class="news-content">
                         <span class="news-source"><%= article.source %></span>
                         <h3 class="news-title"><%= article.title_sw %></h3>
-                        <p class="news-title-en"><%= article.title %></p>
                         <% if (article.description_sw) { %>
                             <p class="news-desc"><%= article.description_sw %></p>
                         <% } %>
@@ -227,6 +237,10 @@
                         
                         <% if (article.link && article.link.includes('thecitizen') || article.link.includes('theeastafrican') || article.link.includes('espn')) { %>
                             <p class="scraped-notice">Imepakuliwa moja kwa moja kutoka tovuti</p>
+                        <% } %>
+                        
+                        <% if (article.needsTranslation && article.title !== article.title_sw) { %>
+                            <p class="translation-notice">*Imetafsiriwa kiotomatiki</p>
                         <% } %>
                     </div>
                 </div>
