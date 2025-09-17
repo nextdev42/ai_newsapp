@@ -26,7 +26,7 @@ const app = express();
 const PORT = 3000;
 
 const openai = new OpenAI.OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: "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",
 });
 
 // ===== View Engine =====
