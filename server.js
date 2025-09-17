@@ -2,7 +2,7 @@ import express from "express";
 import Parser from "rss-parser";
 import axios from "axios";
 import translate from "@iamtraction/google-translate";
-import cheerio from "cheerio"; // <-- Import cheerio
+import cheerio from "cheerio";
 
 const app = express();
 const parser = new Parser({
@@ -83,20 +83,37 @@ async function fetchFeed(url) {
   }
 }
 
-// Example: Tanzanian news scraping
+// Fixed Tanzania news scraping function
 async function scrapeTanzaniaNews() {
   try {
+    console.log("Scraping Tanzania news from The Citizen...");
     const { data } = await axios.get('https://www.thecitizen.co.tz', {
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: { 
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+      },
       timeout: 15000
     });
+    
     const $ = cheerio.load(data);
     const articles = [];
-    $('a.headline, a.title, h1, h2, h3').each((i, el) => {
+    
+    // Try different selectors for news headlines
+    const selectors = [
+      'h1', 'h2', 'h3', '.headline', '.title', '.news-title', 'a[href*="/news/"]',
+      '.article-title', '.post-title', '.entry-title'
+    ];
+    
+    $(selectors.join(', ')).each((i, el) => {
       const title = $(el).text().trim();
-      if (title && title.length > 10 && title.length < 200 && !title.includes('ADVERTISEMENT')) {
-        const url = $(el).closest('a').attr('href');
-        const fullUrl = url ? (url.startsWith('http') ? url : `https://www.thecitizen.co.tz${url}`) : 'https://www.thecitizen.co.tz';
+      if (title && title.length > 10 && title.length < 200 && 
+          !title.includes('ADVERTISEMENT') && !title.match(/^\d+$/) &&
+          !$(el).closest('footer').length && !$(el).closest('header').length) {
+        
+        let url = $(el).is('a') ? $(el).attr('href') : $(el).closest('a').attr('href');
+        const fullUrl = url ? 
+          (url.startsWith('http') ? url : `https://www.thecitizen.co.tz${url.startsWith('/') ? url : '/' + url}`) : 
+          'https://www.thecitizen.co.tz';
+        
         articles.push({
           title,
           link: fullUrl,
@@ -107,16 +124,124 @@ async function scrapeTanzaniaNews() {
         });
       }
     });
-    return articles.slice(0, 5);
+    
+    // Remove duplicates by title
+    const uniqueArticles = articles.filter((article, index, self) =>
+      index === self.findIndex(a => a.title === article.title)
+    );
+    
+    return uniqueArticles.slice(0, 5);
   } catch (err) {
     console.error("Tanzania scraping error:", err.message);
     return [];
   }
 }
 
-// Placeholder scraping functions for completeness
-async function scrapeEastAfricaNews() { return []; }
-async function scrapeESPNNews() { return []; }
+// Implement East Africa news scraping
+async function scrapeEastAfricaNews() {
+  try {
+    console.log("Scraping East Africa news from The East African...");
+    const { data } = await axios.get('https://www.theeastafrican.co.ke', {
+      headers: { 
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+      },
+      timeout: 15000
+    });
+    
+    const $ = cheerio.load(data);
+    const articles = [];
+    
+    const selectors = [
+      'h1', 'h2', 'h3', '.headline', '.title', '.news-title', 'a[href*="/news/"]',
+      '.article-title', '.post-title', '.entry-title'
+    ];
+    
+    $(selectors.join(', ')).each((i, el) => {
+      const title = $(el).text().trim();
+      if (title && title.length > 10 && title.length < 200 && 
+          !title.includes('ADVERTISEMENT') && !title.match(/^\d+$/) &&
+          !$(el).closest('footer').length && !$(el).closest('header').length) {
+        
+        let url = $(el).is('a') ? $(el).attr('href') : $(el).closest('a').attr('href');
+        const fullUrl = url ? 
+          (url.startsWith('http') ? url : `https://www.theeastafrican.co.ke${url.startsWith('/') ? url : '/' + url}`) : 
+          'https://www.theeastafrican.co.ke';
+        
+        articles.push({
+          title,
+          link: fullUrl,
+          pubDate: new Date().toISOString(),
+          source: "The East African",
+          category: "eastAfrica",
+          needsTranslation: !isSwahili(title)
+        });
+      }
+    });
+    
+    const uniqueArticles = articles.filter((article, index, self) =>
+      index === self.findIndex(a => a.title === article.title)
+    );
+    
+    return uniqueArticles.slice(0, 5);
+  } catch (err) {
+    console.error("East Africa scraping error:", err.message);
+    return [];
+  }
+}
+
+// Implement ESPN news scraping
+async function scrapeESPNNews() {
+  try {
+    console.log("Scraping ESPN news...");
+    const { data } = await axios.get('https://www.espn.com', {
+      headers: { 
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+      },
+      timeout: 15000
+    });
+    
+    const $ = cheerio.load(data);
+    const articles = [];
+    
+    const selectors = [
+      'h1', 'h2', 'h3', '.headline', '.title', '.news-title', 'a[href*="/story/"]',
+      '.article-title', '.post-title', '.entry-title'
+    ];
+    
+    $(selectors.join(', ')).each((i, el) => {
+      const title = $(el).text().trim();
+      if (title && title.length > 10 && title.length < 200 && 
+          !title.includes('ADVERTISEMENT') && !title.match(/^\d+$/) &&
+          (title.toLowerCase().includes('sport') || title.toLowerCase().includes('game') || 
+           title.toLowerCase().includes('player') || title.toLowerCase().includes('team')) &&
+          !$(el).closest('footer').length && !$(el).closest('header').length) {
+        
+        let url = $(el).is('a') ? $(el).attr('href') : $(el).closest('a').attr('href');
+        const fullUrl = url ? 
+          (url.startsWith('http') ? url : `https://www.espn.com${url.startsWith('/') ? url : '/' + url}`) : 
+          'https://www.espn.com';
+        
+        articles.push({
+          title,
+          link: fullUrl,
+          pubDate: new Date().toISOString(),
+          source: "ESPN",
+          category: "sports",
+          needsTranslation: true // ESPN content is always in English
+        });
+      }
+    });
+    
+    const uniqueArticles = articles.filter((article, index, self) =>
+      index === self.findIndex(a => a.title === article.title)
+    );
+    
+    return uniqueArticles.slice(0, 5);
+  } catch (err) {
+    console.error("ESPN scraping error:", err.message);
+    return [];
+  }
+}
 
 async function getArticles() {
   const feedCategories = {
@@ -145,6 +270,7 @@ async function getArticles() {
           needsTranslation: true
         }));
         articles = articles.concat(sourceArticles);
+        console.log(`Added ${feed.items.length} articles from ${feed.title || url} (${category})`);
       }
     }
   }
@@ -155,7 +281,9 @@ async function getArticles() {
     scrapeEastAfricaNews(),
     scrapeESPNNews()
   ]);
+  
   articles = articles.concat(tanzaniaArticles, eastAfricaArticles, espnArticles);
+  console.log(`Added ${tanzaniaArticles.length} Tanzanian articles, ${eastAfricaArticles.length} East African articles, ${espnArticles.length} ESPN articles`);
 
   // Filter last 48 hours
   const now = new Date();
@@ -179,6 +307,11 @@ async function getArticles() {
       } else {
         a.title_sw = a.title;
         a.description_sw = a.contentSnippet || a.description || "";
+      }
+      
+      // Add image extraction logic if needed
+      if (!a.image) {
+        a.image = null;
       }
     })
   );
