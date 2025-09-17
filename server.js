@@ -49,12 +49,26 @@ async function fetchFeed(url) {
 
 // Fetch na process articles
 async function getArticles() {
-  // Change sources to frequently updating feeds
-  const cnnFeed = await fetchFeed("http://rss.cnn.com/rss/edition.rss");
-  const bbcFeed = await fetchFeed("https://feeds.bbci.co.uk/news/rss.xml");
-  const cnbcFeed = await fetchFeed("https://www.cnbc.com/id/100003114/device/rss/rss.html");
+  // Define the list of RSS feed URLs
+  const feedUrls = [
+    "http://rss.cnn.com/rss/edition.rss", // CNN
+    "https://feeds.bbci.co.uk/news/rss.xml", // BBC
+    "https://www.cnbc.com/id/100003114/device/rss/rss.html", // CNBC
+    "https://feeds.reuters.com/reuters/technologyNews?format=xml", // Reuters Technology
+    "https://feeds.reuters.com/reuters/worldNews?format=xml" // Reuters World News
+  ];
 
-  let articles = [...cnnFeed.items, ...bbcFeed.items, ...cnbcFeed.items];
+  let articles = [];
+
+  // Fetch and parse each feed
+  for (const url of feedUrls) {
+    const feed = await fetchFeed(url);
+    if (feed.items && feed.items.length > 0) {
+      articles = articles.concat(feed.items);
+    } else {
+      console.warn("Feed empty or failed:", url);
+    }
+  }
 
   // Filter articles published in the last 24 hours
   const now = new Date();
