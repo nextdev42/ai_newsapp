@@ -1,31 +1,48 @@
-// server.js
 import express from "express";
 import axios from "axios";
-import cheerio from "cheerio";
+import { load } from "cheerio";
 import OpenAI from "openai";
+import winston from "winston";
+import path from "path";
 
+// ===== Winston Logger Setup =====
+const logDir = "logs";
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    winston.format.printf(
+      (info) => `[${info.timestamp}] ${info.level.toUpperCase()}: ${info.message}`
+    )
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: path.join(logDir, "habarihub.log") })
+  ],
+});
+
+// ===== Express + OpenAI Setup =====
 const app = express();
 const PORT = 3000;
 
-// ==== OpenAI Config ====
 const openai = new OpenAI.OpenAI({
-  apiKey: "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",
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-// ==== View Engine ====
+// ===== View Engine =====
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 
-// ==== Target site (Reuters World News) ====
+// ===== Target Site =====
 const TARGET_URL = "https://www.reuters.com/world/";
 
-// Scraper function
+// ===== Scraper =====
 async function scrapeNews() {
   try {
     const { data } = await axios.get(TARGET_URL);
-    const $ = cheerio.load(data);
+    const $ = load(data);
 
-    let news = [];
+    const news = [];
 
     $("article.story-card, div.story-content, div.media-story-card__body").each((i, el) => {
       const title = $(el).find("h2, h3").text().trim();
@@ -39,14 +56,14 @@ async function scrapeNews() {
       }
     });
 
-    return news.slice(0, 15); // limit top 15
+    return news.slice(0, 15);
   } catch (err) {
-    console.error("Scraping error:", err.message);
+    logger.error(`Scraping error: ${err.message}`);
     return [];
   }
 }
 
-// Translation helper
+// ===== Translator =====
 async function translateText(text, targetLang = "sw") {
   try {
     const response = await openai.chat.completions.create({
@@ -59,26 +76,25 @@ async function translateText(text, targetLang = "sw") {
 
     return response.choices[0].message.content.trim();
   } catch (err) {
-    console.error("Translation error:", err.message);
-    return text;
+    logger.error(`Translation error: ${err.message} | Text: ${text}`);
+    return text; // fallback
   }
 }
 
-// ==== Routes ====
+// ===== Routes =====
 
 // Homepage => Swahili news
 app.get("/", async (req, res) => {
   const news = await scrapeNews();
-  const translatedNews = [];
 
-  for (let item of news) {
-    const swTitle = await translateText(item.title, "Swahili");
-    translatedNews.push({
+  // Translate in parallel for speed
+  const translatedNews = await Promise.all(
+    news.map(async (item) => ({
       original: item.title,
-      translated: swTitle,
+      translated: await translateText(item.title, "Swahili"),
       link: item.link,
-    });
-  }
+    }))
+  );
 
   res.render("index", { articles: translatedNews });
 });
@@ -92,20 +108,17 @@ app.get("/news", async (req, res) => {
 // Raw JSON (Swahili)
 app.get("/news/sw", async (req, res) => {
   const news = await scrapeNews();
-  const translatedNews = [];
-
-  for (let item of news) {
-    const swTitle = await translateText(item.title, "Swahili");
-    translatedNews.push({
+  const translatedNews = await Promise.all(
+    news.map(async (item) => ({
       original: item.title,
-      translated: swTitle,
+      translated: await translateText(item.title, "Swahili"),
       link: item.link,
-    });
-  }
-
+    }))
+  );
   res.json(translatedNews);
 });
 
+// Start server
 app.listen(PORT, () => {
-  console.log(`✅ HabariHub running on http://localhost:${PORT}`);
+  logger.info(`HabariHub running on http://localhost:${PORT}`);
 });
