@@ -68,7 +68,6 @@ async function getArticles() {
     international: [
       "https://feeds.bbci.co.uk/news/rss.xml", // BBC
       "http://rss.cnn.com/rss/edition.rss", // CNN
-      "https://feeds.reuters.com/reuters/topNews", // Reuters Top News
       "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" // New York Times
     ],
     tanzania: [
