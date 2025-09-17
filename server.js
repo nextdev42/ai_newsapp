@@ -1,117 +1,112 @@
-import express from "express";
-import Parser from "rss-parser";
-import axios from "axios";
-import translate from "@iamtraction/google-translate";
+// server.js
+const express = require("express");
+const axios = require("axios");
+const cheerio = require("cheerio");
+const { Configuration, OpenAIApi } = require("openai");
 
 const app = express();
-const parser = new Parser();
+const PORT = 3000;
 
+// ==== OpenAI Config (weka API key yako) ====
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
+
+// ==== View Engine ====
 app.set("view engine", "ejs");
-app.use(express.static("public"));
+app.use(express.static("public")); // kwa CSS/images
 
-// In-memory cache for translations
-const translationCache = {};
+// ==== Target site (Reuters World News) ====
+const TARGET_URL = "https://www.reuters.com/world/";
 
-// Tafsiri maandishi kwa Kiswahili
-async function translateToSwahili(text) {
-  if (!text || text.trim() === "") return "";
-  if (translationCache[text]) return translationCache[text];
-
+// Scraper function
+async function scrapeNews() {
   try {
-    const res = await translate(text, { to: "sw" });
-    translationCache[text] = res.text;
-    return res.text;
-  } catch (error) {
-    console.error("Translation error:", error.message, "| Text:", text);
-    return text;
-  }
-}
+    const { data } = await axios.get(TARGET_URL);
+    const $ = cheerio.load(data);
 
-// Ondoa HTML tags
-function stripHTML(html) {
-  if (!html) return "";
-  return html.replace(/<[^>]*>?/gm, "");
-}
+    let news = [];
 
-// Fetch RSS feed safely with axios
-async function fetchFeed(url) {
-  try {
-    const res = await axios.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      timeout: 10000,
-    });
-    return await parser.parseString(res.data);
-  } catch (err) {
-    console.error("Feed fetch error:", err.message, "| URL:", url);
-    return { items: [] };
-  }
-}
+    $("article.story-card, div.story-content, div.media-story-card__body").each((i, el) => {
+      const title = $(el).find("h2, h3").text().trim();
+      const link = $(el).find("a").attr("href");
 
-// Fetch & process articles
-async function getArticles() {
-  const feeds = [
-  "http://rss.cnn.com/rss/cnn_topstories.rss",
-  "https://feeds.bbci.co.uk/news/rss.xml",
-  "https://www.reutersagency.com/feed/?best-topics=world&post_type=best",
-  "https://www.aljazeera.com/xml/rss/all.xml",
-  "https://www.theguardian.com/world/rss",
-];
-
-  // Fetch all feeds in parallel
-  const results = await Promise.all(feeds.map(fetchFeed));
-  let articles = results.flatMap(feed => feed.items);
-
-  // Filter only last 24 hours
-  const ONE_DAY = 24 * 60 * 60 * 1000;
-  articles = articles.filter(item => {
-    if (!item.pubDate) return false;
-    const pubDate = new Date(item.pubDate).getTime();
-    return Date.now() - pubDate < ONE_DAY;
-  });
-
-  // Sort by date (newest first)
-  articles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-  // Limit to top 20
-  articles = articles.slice(0, 20);
-
-  // Process translations & clean text
-  await Promise.all(
-    articles.map(async (article) => {
-      const cleanTitle = stripHTML(article.title);
-      const cleanDesc = stripHTML(
-        article.contentSnippet ||
-          article.content ||
-          article.summary ||
-          article.title ||
-          ""
-      );
-
-      article.title_sw = await translateToSwahili(cleanTitle);
-      article.description_sw = await translateToSwahili(cleanDesc);
-
-      // Attach image if available
-      if (article.enclosure?.url) {
-        article.image = article.enclosure.url;
-      } else if (article["media:content"]?.url) {
-        article.image = article["media:content"].url;
-      } else {
-        article.image = null;
+      if (title && link) {
+        news.push({
+          title,
+          link: link.startsWith("http") ? link : `https://www.reuters.com${link}`,
+        });
       }
-    })
-  );
+    });
 
-  return articles;
+    return news.slice(0, 15); // limit top 15
+  } catch (err) {
+    console.error("Scraping error:", err.message);
+    return [];
+  }
 }
 
-// Route
+// Translation helper (English -> Swahili)
+async function translateText(text, targetLang = "sw") {
+  try {
+    const response = await openai.createChatCompletion({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: `You are a translator that translates text into ${targetLang}.` },
+        { role: "user", content: text },
+      ],
+    });
+
+    return response.data.choices[0].message.content.trim();
+  } catch (err) {
+    console.error("Translation error:", err.message);
+    return text; // fallback original
+  }
+}
+
+// ==== Routes ====
+
+// Homepage => Habari zimetafsiriwa Kiswahili
 app.get("/", async (req, res) => {
-  const articles = await getArticles();
-  res.render("index", { articles });
+  const news = await scrapeNews();
+  const translatedNews = [];
+
+  for (let item of news) {
+    const swTitle = await translateText(item.title, "Swahili");
+    translatedNews.push({
+      original: item.title,
+      translated: swTitle,
+      link: item.link,
+    });
+  }
+
+  res.render("index", { articles: translatedNews });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`✅ HabariHub running on http://localhost:${PORT}`)
-);
+// Raw JSON (English)
+app.get("/news", async (req, res) => {
+  const news = await scrapeNews();
+  res.json(news);
+});
+
+// Raw JSON (Swahili)
+app.get("/news/sw", async (req, res) => {
+  const news = await scrapeNews();
+  const translatedNews = [];
+
+  for (let item of news) {
+    const swTitle = await translateText(item.title, "Swahili");
+    translatedNews.push({
+      original: item.title,
+      translated: swTitle,
+      link: item.link,
+    });
+  }
+
+  res.json(translatedNews);
+});
+
+app.listen(PORT, () => {
+  console.log(`✅ HabariHub running on http://localhost:${PORT}`);
+});
