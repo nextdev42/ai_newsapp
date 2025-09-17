@@ -8,7 +8,9 @@ const parser = new Parser({
   customFields: {
     item: [
       ['media:content', 'mediaContent'],
-      ['media:thumbnail', 'mediaThumbnail']
+      ['media:thumbnail', 'mediaThumbnail'],
+      ['description', 'description'],
+      ['content:encoded', 'contentEncoded']
     ]
   }
 });
@@ -46,10 +48,11 @@ async function fetchFeed(url) {
     console.log(`Fetching feed from: ${url}`);
     const res = await axios.get(url, {
       headers: { 
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/xml"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "application/xml, text/xml, */*",
+        "Accept-Language": "en-US,en;q=0.9",
       },
-      timeout: 15000
+      timeout: 20000
     });
     return await parser.parseString(res.data);
   } catch (err) {
@@ -60,7 +63,7 @@ async function fetchFeed(url) {
 
 // Fetch na process articles
 async function getArticles() {
-  // Categorize feeds by type
+  // Categorize feeds by type with working URLs
   const feedCategories = {
     international: [
       "https://feeds.bbci.co.uk/news/rss.xml", // BBC
@@ -70,18 +73,18 @@ async function getArticles() {
     ],
     tanzania: [
       "https://www.thecitizen.co.tz/rss", // The Citizen Tanzania
-      "https://www.habari.co.tz/feed", // Habari Tanzania
-      "https://www.ippmedia.com/rss" // IPP Media Tanzania
+      "https://www.ippmedia.com/rss", // IPP Media Tanzania
+      "https://www.mwananchi.co.tz/rss" // Mwananchi Newspaper
     ],
     eastAfrica: [
-      "https://www.theeastafrican.co.ke/rss", // The East African
-      "https://www.nation.co.ke/rss", // Daily Nation Kenya
-      "https://www.monitor.co.ug/rss" // Daily Monitor Uganda
+      "https://nation.africa/kenya.rss", // Daily Nation Kenya
+      "https://www.monitor.co.ug/uganda.rss", // Daily Monitor Uganda
+      "https://www.theeastafrican.co.ke/ke.rss" // The East African
     ],
     sports: [
       "https://www.bbc.com/sport/africa/rss.xml", // BBC Sport Africa
-      "https://www.supersport.com/rss", // SuperSport
-      "https://www.citizensports.co.tz/feed" // Citizen Sports Tanzania
+      "https://www.espn.com/espn/rss/news", // ESPN
+      "https://www.goal.com/rss" // Goal.com
     ]
   };
 
@@ -119,17 +122,43 @@ async function getArticles() {
     }
   }
 
-  // Filter articles published in the last 24 hours
+  // If we don't have enough articles, add some fallback feeds
+  if (articles.length < 10) {
+    console.log("Not enough articles, adding fallback feeds...");
+    const fallbackFeeds = [
+      "https://www.aljazeera.com/xml/rss/all.xml",
+      "https://feeds.skynews.com/feeds/rss/world.xml",
+      "https://www.dw.com/rss/en-world-01/rdf"
+    ];
+    
+    for (const url of fallbackFeeds) {
+      const feed = await fetchFeed(url);
+      if (feed.items && feed.items.length > 0) {
+        const sourceArticles = feed.items.map(item => {
+          return {
+            ...item,
+            source: feed.title || url,
+            sourceUrl: url,
+            category: "international"
+          };
+        });
+        articles = articles.concat(sourceArticles);
+        console.log(`Added ${feed.items.length} fallback articles from ${feed.title || url}`);
+      }
+    }
+  }
+
+  // Filter articles published in the last 48 hours (more lenient for East African sources)
   const now = new Date();
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
 
   articles = articles.filter(article => {
     if (!article.pubDate) return false;
     const pubDate = new Date(article.pubDate);
-    return pubDate > oneDayAgo;
+    return pubDate > twoDaysAgo;
   });
 
-  console.log(`Found ${articles.length} articles from last 24 hours`);
+  console.log(`Found ${articles.length} articles from last 48 hours`);
 
   // Group articles by category for debugging
   const articlesByCategory = {};
@@ -153,7 +182,7 @@ async function getArticles() {
     articles.map(async (article) => {
       const cleanTitle = stripHTML(article.title || "");
       const cleanDesc = stripHTML(
-        article.contentSnippet || article.content || article.summary || ""
+        article.contentSnippet || article.content || article.summary || article.description || ""
       );
 
       article.title_sw = await translateToSwahili(cleanTitle);
@@ -169,6 +198,14 @@ async function getArticles() {
       } else if (article.content && article.content.includes("<img")) {
         // Try to extract image from content
         const imgMatch = article.content.match(/<img[^>]+src="([^">]+)"/);
+        if (imgMatch && imgMatch[1]) {
+          article.image = imgMatch[1];
+        } else {
+          article.image = null;
+        }
+      } else if (article.contentEncoded && article.contentEncoded.includes("<img")) {
+        // Try to extract image from encoded content
+        const imgMatch = article.contentEncoded.match(/<img[^>]+src="([^">]+)"/);
         if (imgMatch && imgMatch[1]) {
           article.image = imgMatch[1];
         } else {
