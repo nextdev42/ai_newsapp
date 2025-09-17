@@ -36,14 +36,18 @@ function stripHTML(html) {
 // Fetch RSS feed safely na axios
 async function fetchFeed(url) {
   try {
+    console.log(`Fetching feed from: ${url}`);
     const res = await axios.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      timeout: 10000
+      headers: { 
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/xml"
+      },
+      timeout: 15000
     });
     return await parser.parseString(res.data);
   } catch (err) {
     console.error("Feed fetch error:", err.message, "| URL:", url);
-    return { items: [] };
+    return { items: [], title: url, failed: true };
   }
 }
 
@@ -51,24 +55,45 @@ async function fetchFeed(url) {
 async function getArticles() {
   // Define the list of RSS feed URLs
   const feedUrls = [
-    "http://rss.cnn.com/rss/edition.rss", // CNN
     "https://feeds.bbci.co.uk/news/rss.xml", // BBC
+    "http://rss.cnn.com/rss/edition.rss", // CNN
     "https://www.cnbc.com/id/100003114/device/rss/rss.html", // CNBC
-    "https://feeds.reuters.com/reuters/technologyNews?format=xml", // Reuters Technology
-    "https://feeds.reuters.com/reuters/worldNews?format=xml" // Reuters World News
+    "https://feeds.reuters.com/reuters/topNews", // Reuters Top News
+    "https://feeds.reuters.com/reuters/technologyNews" // Reuters Technology
   ];
 
   let articles = [];
+  const feedResults = [];
 
   // Fetch and parse each feed
   for (const url of feedUrls) {
     const feed = await fetchFeed(url);
+    feedResults.push({
+      url,
+      title: feed.title,
+      itemCount: feed.items ? feed.items.length : 0,
+      failed: feed.failed || false
+    });
+    
     if (feed.items && feed.items.length > 0) {
-      articles = articles.concat(feed.items);
+      // Add source information to each article
+      const sourceArticles = feed.items.map(item => {
+        return {
+          ...item,
+          source: feed.title || url,
+          sourceUrl: url
+        };
+      });
+      
+      articles = articles.concat(sourceArticles);
+      console.log(`Added ${feed.items.length} articles from ${feed.title || url}`);
     } else {
-      console.warn("Feed empty or failed:", url);
+      console.warn(`No items found in feed: ${url}`);
     }
   }
+
+  // Debug: Show what feeds we got
+  console.log("Feed results:", feedResults);
 
   // Filter articles published in the last 24 hours
   const now = new Date();
@@ -80,15 +105,22 @@ async function getArticles() {
     return pubDate > oneDayAgo;
   });
 
+  console.log(`Found ${articles.length} articles from last 24 hours`);
+
+  // Sort by date, newest first
+  articles.sort((a, b) => {
+    return new Date(b.pubDate) - new Date(a.pubDate);
+  });
+
   // Limit to top 20 recent articles
   articles = articles.slice(0, 20);
 
   // Translate titles and descriptions
   await Promise.all(
     articles.map(async (article) => {
-      const cleanTitle = stripHTML(article.title);
+      const cleanTitle = stripHTML(article.title || "");
       const cleanDesc = stripHTML(
-        article.contentSnippet || article.content || article.summary || article.title || ""
+        article.contentSnippet || article.content || article.summary || ""
       );
 
       article.title_sw = await translateToSwahili(cleanTitle);
@@ -99,6 +131,14 @@ async function getArticles() {
         article.image = article.enclosure.url;
       } else if (article["media:content"] && article["media:content"].url) {
         article.image = article["media:content"].url;
+      } else if (article.content && article.content.includes("<img")) {
+        // Try to extract image from content
+        const imgMatch = article.content.match(/<img[^>]+src="([^">]+)"/);
+        if (imgMatch && imgMatch[1]) {
+          article.image = imgMatch[1];
+        } else {
+          article.image = null;
+        }
       } else {
         article.image = null;
       }
@@ -110,8 +150,13 @@ async function getArticles() {
 
 // Route
 app.get("/", async (req, res) => {
-  const articles = await getArticles();
-  res.render("index", { articles });
+  try {
+    const articles = await getArticles();
+    res.render("index", { articles });
+  } catch (error) {
+    console.error("Error in main route:", error);
+    res.status(500).send("Error loading news articles");
+  }
 });
 
 // Start server
