@@ -58,9 +58,7 @@ async function getArticles() {
     "https://feeds.bbci.co.uk/news/rss.xml", // BBC
     "http://rss.cnn.com/rss/edition.rss", // CNN
     "https://www.cnbc.com/id/100003114/device/rss/rss.html", // CNBC
-    "https://feeds.reuters.com/reuters/topNews", // Reuters Top News
-    "https://feeds.reuters.com/reuters/technologyNews" // Reuters Technology
-  ];
+    
 
   let articles = [];
   const feedResults = [];
