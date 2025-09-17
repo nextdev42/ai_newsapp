@@ -118,6 +118,14 @@ app.get("/news/sw", async (req, res) => {
   res.json(translatedNews);
 });
 
+  app.get("/check-key", (req, res) => {
+  if (process.env.OPENAI_API_KEY) {
+    res.send("✅ OPENAI_API_KEY is set");
+  } else {
+    res.status(500).send("❌ OPENAI_API_KEY is missing");
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   logger.info(`HabariHub running on http://localhost:${PORT}`);
