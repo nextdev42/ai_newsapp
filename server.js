@@ -4,7 +4,15 @@ import axios from "axios";
 import translate from "@iamtraction/google-translate";
 
 const app = express();
-const parser = new Parser();
+// Configure parser to handle media content
+const parser = new Parser({
+  customFields: {
+    item: [
+      ['media:content', 'mediaContent'],
+      ['media:thumbnail', 'mediaThumbnail']
+    ]
+  }
+});
 
 app.set("view engine", "ejs");
 app.use(express.static("public"));
@@ -51,13 +59,15 @@ async function fetchFeed(url) {
   }
 }
 
-// Fetch and process articles
+// Fetch na process articles
 async function getArticles() {
-  // Fixed: proper closing bracket in feedUrls array
+  // Updated list of RSS feed URLs with working ones
   const feedUrls = [
     "https://feeds.bbci.co.uk/news/rss.xml", // BBC
-    "http://rss.cnn.com/rss/edition.rss",   // CNN
-    "https://www.cnbc.com/id/100003114/device/rss/rss.xml" // CNBC
+    "http://rss.cnn.com/rss/edition.rss", // CNN
+    "https://www.cnbc.com/id/10000664/device/rss/rss.html", // Updated CNBC URL
+    "https://feeds.reuters.com/reuters/topNews", // Reuters Top News
+    "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" // New York Times as alternative
   ];
 
   let articles = [];
@@ -75,11 +85,13 @@ async function getArticles() {
     
     if (feed.items && feed.items.length > 0) {
       // Add source information to each article
-      const sourceArticles = feed.items.map(item => ({
-        ...item,
-        source: feed.title || url,
-        sourceUrl: url
-      }));
+      const sourceArticles = feed.items.map(item => {
+        return {
+          ...item,
+          source: feed.title || url,
+          sourceUrl: url
+        };
+      });
       
       articles = articles.concat(sourceArticles);
       console.log(`Added ${feed.items.length} articles from ${feed.title || url}`);
@@ -88,6 +100,7 @@ async function getArticles() {
     }
   }
 
+  // Debug: Show what feeds we got
   console.log("Feed results:", feedResults);
 
   // Filter articles published in the last 24 hours
@@ -102,8 +115,19 @@ async function getArticles() {
 
   console.log(`Found ${articles.length} articles from last 24 hours`);
 
+  // Group articles by source for debugging
+  const articlesBySource = {};
+  articles.forEach(article => {
+    const source = article.source;
+    if (!articlesBySource[source]) articlesBySource[source] = 0;
+    articlesBySource[source]++;
+  });
+  console.log("Articles by source:", articlesBySource);
+
   // Sort by date, newest first
-  articles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+  articles.sort((a, b) => {
+    return new Date(b.pubDate) - new Date(a.pubDate);
+  });
 
   // Limit to top 20 recent articles
   articles = articles.slice(0, 20);
@@ -117,16 +141,23 @@ async function getArticles() {
       );
 
       article.title_sw = await translateToSwahili(cleanTitle);
-      article.description_sw = await translateToSwahili(cleanDesc);
+      article.description_sw = await translateToSwahili(cleanDesc.slice(0, 200)); // Limit description length
 
       // Attach images if available
       if (article.enclosure && article.enclosure.url) {
         article.image = article.enclosure.url;
-      } else if (article["media:content"] && article["media:content"].url) {
-        article.image = article["media:content"].url;
+      } else if (article.mediaContent && article.mediaContent.$.url) {
+        article.image = article.mediaContent.$.url;
+      } else if (article.mediaThumbnail && article.mediaThumbnail.$.url) {
+        article.image = article.mediaThumbnail.$.url;
       } else if (article.content && article.content.includes("<img")) {
+        // Try to extract image from content
         const imgMatch = article.content.match(/<img[^>]+src="([^">]+)"/);
-        article.image = imgMatch ? imgMatch[1] : null;
+        if (imgMatch && imgMatch[1]) {
+          article.image = imgMatch[1];
+        } else {
+          article.image = null;
+        }
       } else {
         article.image = null;
       }
