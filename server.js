@@ -9,7 +9,7 @@ const parser = new Parser();
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 
-// Simple in-memory cache for translations
+// In-memory cache for translations
 const translationCache = {};
 
 // Tafsiri maandishi kwa Kiswahili
@@ -33,12 +33,12 @@ function stripHTML(html) {
   return html.replace(/<[^>]*>?/gm, "");
 }
 
-// Fetch RSS feed safely na axios
+// Fetch RSS feed safely with axios
 async function fetchFeed(url) {
   try {
     const res = await axios.get(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
-      timeout: 10000
+      timeout: 10000,
     });
     return await parser.parseString(res.data);
   } catch (err) {
@@ -47,30 +47,53 @@ async function fetchFeed(url) {
   }
 }
 
-// Fetch na process articles
+// Fetch & process articles
 async function getArticles() {
-  const cnnFeed = await fetchFeed("http://rss.cnn.com/rss/cnn_topstories.rss");
-  const bbcFeed = await fetchFeed("https://feeds.bbci.co.uk/news/rss.xml");
+  const feeds = [
+    "http://rss.cnn.com/rss/cnn_topstories.rss",
+    "https://feeds.bbci.co.uk/news/rss.xml",
+    "http://feeds.reuters.com/reuters/topNews",
+    "https://www.aljazeera.com/xml/rss/all.xml",
+    "https://www.theguardian.com/world/rss",
+  ];
 
-  let articles = [...cnnFeed.items, ...bbcFeed.items];
+  // Fetch all feeds in parallel
+  const results = await Promise.all(feeds.map(fetchFeed));
+  let articles = results.flatMap(feed => feed.items);
+
+  // Filter only last 24 hours
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  articles = articles.filter(item => {
+    if (!item.pubDate) return false;
+    const pubDate = new Date(item.pubDate).getTime();
+    return Date.now() - pubDate < ONE_DAY;
+  });
+
+  // Sort by date (newest first)
+  articles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
   // Limit to top 20
   articles = articles.slice(0, 20);
 
+  // Process translations & clean text
   await Promise.all(
     articles.map(async (article) => {
       const cleanTitle = stripHTML(article.title);
       const cleanDesc = stripHTML(
-        article.contentSnippet || article.content || article.summary || article.title || ""
+        article.contentSnippet ||
+          article.content ||
+          article.summary ||
+          article.title ||
+          ""
       );
 
       article.title_sw = await translateToSwahili(cleanTitle);
       article.description_sw = await translateToSwahili(cleanDesc);
 
-      // Attach images
-      if (article.enclosure && article.enclosure.url) {
+      // Attach image if available
+      if (article.enclosure?.url) {
         article.image = article.enclosure.url;
-      } else if (article["media:content"] && article["media:content"].url) {
+      } else if (article["media:content"]?.url) {
         article.image = article["media:content"].url;
       } else {
         article.image = null;
@@ -89,4 +112,6 @@ app.get("/", async (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`HabariHub running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`✅ HabariHub running on http://localhost:${PORT}`)
+);
