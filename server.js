@@ -2,6 +2,7 @@ import express from "express";
 import Parser from "rss-parser";
 import axios from "axios";
 import translate from "@iamtraction/google-translate";
+import * as cheerio from "cheerio"; // Import cheerio
 
 const app = express();
 const parser = new Parser({
@@ -61,6 +62,114 @@ async function fetchFeed(url) {
   }
 }
 
+// Web scraping functions
+async function scrapeTanzaniaNews() {
+  try {
+    console.log("Scraping Tanzania news...");
+    const { data } = await axios.get('https://www.thecitizen.co.tz', {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      },
+      timeout: 15000
+    });
+    
+    const $ = cheerio.load(data);
+    const articles = [];
+    
+    // Scrape headlines from The Citizen Tanzania
+    $('.headline, h1, h2, h3').each((i, element) => {
+      const title = $(element).text().trim();
+      if (title && title.length > 20 && title.length < 200) {
+        const url = $(element).closest('a').attr('href');
+        articles.push({
+          title: title,
+          link: url ? (url.startsWith('http') ? url : `https://www.thecitizen.co.tz${url}`) : 'https://www.thecitizen.co.tz',
+          pubDate: new Date().toISOString(),
+          source: "The Citizen Tanzania",
+          category: "tanzania"
+        });
+      }
+    });
+    
+    return articles.slice(0, 5); // Return top 5 articles
+  } catch (error) {
+    console.error("Tanzania scraping error:", error.message);
+    return [];
+  }
+}
+
+async function scrapeEastAfricaNews() {
+  try {
+    console.log("Scraping East Africa news...");
+    const { data } = await axios.get('https://www.theeastafrican.co.ke', {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      },
+      timeout: 15000
+    });
+    
+    const $ = cheerio.load(data);
+    const articles = [];
+    
+    // Scrape headlines from The East African
+    $('.headline, h1, h2, h3').each((i, element) => {
+      const title = $(element).text().trim();
+      if (title && title.length > 20 && title.length < 200) {
+        const url = $(element).closest('a').attr('href');
+        articles.push({
+          title: title,
+          link: url ? (url.startsWith('http') ? url : `https://www.theeastafrican.co.ke${url}`) : 'https://www.theeastafrican.co.ke',
+          pubDate: new Date().toISOString(),
+          source: "The East African",
+          category: "eastAfrica"
+        });
+      }
+    });
+    
+    return articles.slice(0, 5); // Return top 5 articles
+  } catch (error) {
+    console.error("East Africa scraping error:", error.message);
+    return [];
+  }
+}
+
+async function scrapeESPNNews() {
+  try {
+    console.log("Scraping ESPN news...");
+    const { data } = await axios.get('https://www.espn.com', {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      },
+      timeout: 15000
+    });
+    
+    const $ = cheerio.load(data);
+    const articles = [];
+    
+    // Scrape headlines from ESPN
+    $('.headline, h1, h2, h3').each((i, element) => {
+      const title = $(element).text().trim();
+      if (title && title.length > 20 && title.length < 200 && 
+          (title.toLowerCase().includes('sport') || title.toLowerCase().includes('game') || 
+           title.toLowerCase().includes('player') || title.toLowerCase().includes('team'))) {
+        const url = $(element).closest('a').attr('href');
+        articles.push({
+          title: title,
+          link: url ? (url.startsWith('http') ? url : `https://www.espn.com${url}`) : 'https://www.espn.com',
+          pubDate: new Date().toISOString(),
+          source: "ESPN",
+          category: "sports"
+        });
+      }
+    });
+    
+    return articles.slice(0, 5); // Return top 5 articles
+  } catch (error) {
+    console.error("ESPN scraping error:", error.message);
+    return [];
+  }
+}
+
 // Fetch na process articles
 async function getArticles() {
   // Categorize feeds by type with working URLs
@@ -70,19 +179,8 @@ async function getArticles() {
       "http://rss.cnn.com/rss/edition.rss", // CNN
       "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" // New York Times
     ],
-    tanzania: [
-      "https://www.thecitizen.co.tz/rss", // The Citizen Tanzania
-      "https://www.ippmedia.com/rss", // IPP Media Tanzania
-      "https://www.mwananchi.co.tz/rss" // Mwananchi Newspaper
-    ],
-    eastAfrica: [
-      "https://nation.africa/kenya.rss", // Daily Nation Kenya
-      "https://www.monitor.co.ug/uganda.rss", // Daily Monitor Uganda
-      "https://www.theeastafrican.co.ke/ke.rss" // The East African
-    ],
     sports: [
       "https://www.bbc.com/sport/africa/rss.xml", // BBC Sport Africa
-      "https://www.espn.com/espn/rss/news", // ESPN
       "https://www.goal.com/rss" // Goal.com
     ]
   };
@@ -121,33 +219,17 @@ async function getArticles() {
     }
   }
 
-  // If we don't have enough articles, add some fallback feeds
-  if (articles.length < 10) {
-    console.log("Not enough articles, adding fallback feeds...");
-    const fallbackFeeds = [
-      "https://www.aljazeera.com/xml/rss/all.xml",
-      "https://feeds.skynews.com/feeds/rss/world.xml",
-      "https://www.dw.com/rss/en-world-01/rdf"
-    ];
-    
-    for (const url of fallbackFeeds) {
-      const feed = await fetchFeed(url);
-      if (feed.items && feed.items.length > 0) {
-        const sourceArticles = feed.items.map(item => {
-          return {
-            ...item,
-            source: feed.title || url,
-            sourceUrl: url,
-            category: "international"
-          };
-        });
-        articles = articles.concat(sourceArticles);
-        console.log(`Added ${feed.items.length} fallback articles from ${feed.title || url}`);
-      }
-    }
-  }
+  // Add scraped articles
+  const [tanzaniaArticles, eastAfricaArticles, espnArticles] = await Promise.all([
+    scrapeTanzaniaNews(),
+    scrapeEastAfricaNews(),
+    scrapeESPNNews()
+  ]);
+  
+  articles = articles.concat(tanzaniaArticles, eastAfricaArticles, espnArticles);
+  console.log(`Added ${tanzaniaArticles.length} Tanzanian articles, ${eastAfricaArticles.length} East African articles, ${espnArticles.length} ESPN articles`);
 
-  // Filter articles published in the last 48 hours (more lenient for East African sources)
+  // Filter articles published in the last 48 hours (more lenient for scraped content)
   const now = new Date();
   const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
 
@@ -187,31 +269,22 @@ async function getArticles() {
       article.title_sw = await translateToSwahili(cleanTitle);
       article.description_sw = await translateToSwahili(cleanDesc.slice(0, 200)); // Limit description length
 
-      // Attach images if available
-      if (article.enclosure && article.enclosure.url) {
-        article.image = article.enclosure.url;
-      } else if (article.mediaContent && article.mediaContent.$.url) {
-        article.image = article.mediaContent.$.url;
-      } else if (article.mediaThumbnail && article.mediaThumbnail.$.url) {
-        article.image = article.mediaThumbnail.$.url;
-      } else if (article.content && article.content.includes("<img")) {
-        // Try to extract image from content
-        const imgMatch = article.content.match(/<img[^>]+src="([^">]+)"/);
-        if (imgMatch && imgMatch[1]) {
-          article.image = imgMatch[1];
+      // For scraped articles without images, try to find one
+      if (!article.image) {
+        // Try to extract image from content if available
+        if (article.content && article.content.includes("<img")) {
+          const imgMatch = article.content.match(/<img[^>]+src="([^">]+)"/);
+          if (imgMatch && imgMatch[1]) {
+            article.image = imgMatch[1];
+          }
+        } else if (article.contentEncoded && article.contentEncoded.includes("<img")) {
+          const imgMatch = article.contentEncoded.match(/<img[^>]+src="([^">]+)"/);
+          if (imgMatch && imgMatch[1]) {
+            article.image = imgMatch[1];
+          }
         } else {
           article.image = null;
         }
-      } else if (article.contentEncoded && article.contentEncoded.includes("<img")) {
-        // Try to extract image from encoded content
-        const imgMatch = article.contentEncoded.match(/<img[^>]+src="([^">]+)"/);
-        if (imgMatch && imgMatch[1]) {
-          article.image = imgMatch[1];
-        } else {
-          article.image = null;
-        }
-      } else {
-        article.image = null;
       }
     })
   );
