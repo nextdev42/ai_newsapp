@@ -49,16 +49,27 @@ async function fetchFeed(url) {
 
 // Fetch na process articles
 async function getArticles() {
-  // Change sources here to your preferred sites with RSS feeds
-  const cnnFeed = await fetchFeed("http://rss.cnn.com/rss/cnn_topstories.rss");
+  // Change sources to frequently updating feeds
+  const cnnFeed = await fetchFeed("http://rss.cnn.com/rss/edition.rss");
   const bbcFeed = await fetchFeed("https://feeds.bbci.co.uk/news/rss.xml");
-  const cnbcFeed = await fetchFeed("https://www.cnbc.com/id/100003114/device/rss/rss.html"); // Example CNBC feed
+  const cnbcFeed = await fetchFeed("https://www.cnbc.com/id/100003114/device/rss/rss.html");
 
   let articles = [...cnnFeed.items, ...bbcFeed.items, ...cnbcFeed.items];
 
-  // Limit to top 20
+  // Filter articles published in the last 24 hours
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  articles = articles.filter(article => {
+    if (!article.pubDate) return false;
+    const pubDate = new Date(article.pubDate);
+    return pubDate > oneDayAgo;
+  });
+
+  // Limit to top 20 recent articles
   articles = articles.slice(0, 20);
 
+  // Translate titles and descriptions
   await Promise.all(
     articles.map(async (article) => {
       const cleanTitle = stripHTML(article.title);
