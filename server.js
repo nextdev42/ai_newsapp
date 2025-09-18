@@ -65,7 +65,7 @@ async function fetchFeed(url) {
     console.log(`Fetching feed from: ${url}`);
     const res = await axios.get(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0",
         "Accept": "application/xml, text/xml, */*"
       },
       timeout: 20000
@@ -82,8 +82,6 @@ function extractImageFromItem(item) {
   if (item.enclosure?.url) imageSources.push(item.enclosure.url);
   if (Array.isArray(item.mediaContent)) item.mediaContent.forEach(m => { if (m.$?.url) imageSources.push(m.$.url); });
   if (Array.isArray(item.mediaThumbnail)) item.mediaThumbnail.forEach(m => { if (m.$?.url) imageSources.push(m.$.url); });
-  if (item["media:content"]?.$?.url) imageSources.push(item["media:content"].$.url);
-  if (item["media:thumbnail"]?.$?.url) imageSources.push(item["media:thumbnail"].$.url);
 
   const contentFields = [item.content, item.contentEncoded, item.description, item.summary].filter(Boolean);
   for (const content of contentFields) {
@@ -97,7 +95,6 @@ function extractImageFromItem(item) {
 // ---------------- Scrapers ----------------
 async function scrapeTanzaniaNews() {
   try {
-    console.log("Scraping Tanzania news...");
     const { data } = await axios.get("https://www.thecitizen.co.tz", { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 });
     const $ = cheerio.load(data);
     const articles = [];
@@ -121,7 +118,6 @@ async function scrapeTanzaniaNews() {
 
 async function scrapeEastAfricaNews() {
   try {
-    console.log("Scraping East Africa news...");
     const { data } = await axios.get("https://www.theeastafrican.co.ke", { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 });
     const $ = cheerio.load(data);
     const articles = [];
@@ -143,36 +139,11 @@ async function scrapeEastAfricaNews() {
   }
 }
 
-async function scrapeESPNNews() {
-  try {
-    console.log("Scraping ESPN news...");
-    const { data } = await axios.get("https://www.espn.com", { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 });
-    const $ = cheerio.load(data);
-    const articles = [];
-    $(".contentItem__contentWrapper, .Story__Story__content, .headlineStack__listItem").each((i, el) => {
-      const title = $(el).find("h1, h2, h3, .contentItem__title, .Story__Headline").first().text().trim();
-      const link = $(el).find("a").first().attr("href");
-      if (title && link && title.length > 10) {
-        const fullUrl = link.startsWith("http") ? link : `https://www.espn.com${link.startsWith("/") ? link : "/" + link}`;
-        let description = $(el).find("p, .contentItem__subhead").first().text().trim() || "Habari za michezo kutoka ESPN";
-        let image = $(el).find("img").first().attr("src") || $(el).find("img").first().attr("data-src");
-        if (image && !image.startsWith("http")) image = `https://www.espn.com${image.startsWith("/") ? image : "/" + image}`;
-        articles.push({ title, link: fullUrl, contentSnippet: description, pubDate: new Date().toISOString(), source: "ESPN", category: "sports", needsTranslation: true, image: image || null });
-      }
-    });
-    return articles.slice(0, 5);
-  } catch (err) {
-    console.error("ESPN scraping error:", err.message);
-    return [];
-  }
-}
-
 // ---------------- Main Fetch ----------------
 async function getArticles() {
   const feedCategories = {
-    international: ["https://feeds.bbci.co.uk/news/rss.xml","http://rss.cnn.com/rss/edition.rss","https://feeds.reuters.com/reuters/topNews","https://rss.nytimes.com/services/xml/rss/nyt/World.xml"],
-    sports: ["https://www.bbc.com/sport/africa/rss.xml","https://www.goal.com/rss"],
-    eastAfrica: ["https://www.nation.co.ke/rss","https://www.monitor.co.ug/uganda/rss"]
+    international: ["https://feeds.bbci.co.uk/news/rss.xml","http://rss.cnn.com/rss/edition.rss","https://feeds.reuters.com/reuters/topNews"],
+    sports: ["https://www.bbc.com/sport/africa/rss.xml","https://www.goal.com/rss"]
   };
   let articles = [];
   for (const category in feedCategories) {
@@ -183,14 +154,17 @@ async function getArticles() {
       }
     }
   }
-  const [tanzania, eastAfrica, espn] = await Promise.all([scrapeTanzaniaNews(), scrapeEastAfricaNews(), scrapeESPNNews()]);
-  articles = articles.concat(tanzania, eastAfrica, espn);
+  const [tanzania, eastAfrica] = await Promise.all([scrapeTanzaniaNews(), scrapeEastAfricaNews()]);
+  articles = articles.concat(tanzania, eastAfrica);
+
   const now = new Date();
   const twoDaysAgo = new Date(now.getTime() - 48*60*60*1000);
   articles = articles.filter(a => a.pubDate && new Date(a.pubDate) > twoDaysAgo);
+
   articles.sort((a,b) => new Date(b.pubDate) - new Date(a.pubDate));
   articles = articles.slice(0,30);
   articles.forEach(a => { if (!a.image) a.image = "/default-news.jpg"; });
+
   await Promise.all(articles.map(async a => {
     if (a.needsTranslation) {
       const cleanTitle = stripHTML(a.title || "");
@@ -202,6 +176,7 @@ async function getArticles() {
       a.description_sw = a.contentSnippet || a.description || "Hakuna maelezo";
     }
   }));
+
   return articles;
 }
 
