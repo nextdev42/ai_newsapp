@@ -9,7 +9,7 @@ app.use(express.static("public"));
 
 // ---------------- Translation Cache ----------------
 const translationCache = {};
-const CACHE_EXPIRY = 30 * 60 * 1000; // 30 minutes
+const CACHE_EXPIRY = 30 * 60 * 1000;
 
 async function translateToSwahili(text) {
   if (!text || text.trim() === "") return "Hakuna maelezo";
@@ -47,10 +47,19 @@ function stripHTML(html) {
   return html.replace(/<[^>]*>?/gm, "");
 }
 
-// ---------------- Helper to scrape articles ----------------
+// ---------------- Browser-like headers ----------------
+const browserHeaders = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Referer": "https://www.google.com/",
+  "Connection": "keep-alive"
+};
+
+// ---------------- Generic scraper ----------------
 async function scrapeSite(url, articleSelector, titleSelector, linkSelector, descSelector, imgSelector, siteName, category) {
   try {
-    const { data } = await axios.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 });
+    const { data } = await axios.get(url, { headers: browserHeaders, timeout: 20000 });
     const $ = cheerio.load(data);
     const articles = [];
     $(articleSelector).each((i, el) => {
@@ -79,14 +88,16 @@ async function scrapeSite(url, articleSelector, titleSelector, linkSelector, des
   }
 }
 
-// ---------------- All Scrapers ----------------
+// ---------------- Scrape all sources ----------------
 async function scrapeAllNews() {
   const allArticles = await Promise.all([
     scrapeSite("https://www.thecitizen.co.tz", ".article-item, .news-item", "h2, h3, .title", "a", "p, .summary", "img", "The Citizen Tanzania", "tanzania"),
     scrapeSite("https://www.theeastafrican.co.ke", ".story, .article", "h1, h2, h3, .title", "a", "p, .summary", "img", "The East African", "eastAfrica"),
     scrapeSite("https://edition.cnn.com/world", ".cd__content", ".cd__headline-text", "a", ".cd__description", "img", "CNN", "international"),
     scrapeSite("https://www.reuters.com/world/", ".story-content, .story", "h3, h2", "a", "p", "img", "Reuters", "international"),
-    scrapeSite("https://www.bbc.com/news", ".gs-c-promo", "h3", "a", "p", "img", "BBC", "international")
+    scrapeSite("https://www.bbc.com/news", ".gs-c-promo", "h3", "a", "p", "img", "BBC", "international"),
+    scrapeSite("https://www.nytimes.com/section/world", "article", "h2", "a", "p", "img", "NY Times", "international"),
+    scrapeSite("https://www.msnbc.com/world", ".card", "h2, h3", "a", "p", "img", "MSNBC", "international")
   ]);
 
   let articles = allArticles.flat();
