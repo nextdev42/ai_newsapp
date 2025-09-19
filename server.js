@@ -352,7 +352,7 @@ async function getArticles() {
         international: [
             "https://feeds.bbci.co.uk/news/rss.xml",
             "http://rss.cnn.com/rss/edition.rss",
-            "https://www.msnbc.com/feeds/latest",
+            "https://feeds.nbcnews.com/msnbc/public/news",
             "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
         ],
         sports: [
@@ -360,7 +360,7 @@ async function getArticles() {
             "https://www.espn.com/espn/rss/news"
         ],
         swahili: [
-            "https://www.voaswahili.com/api/zq$omekvm", // VOA Swahili RSS
+           // "https://www.voaswahili.com/api/zq$omekvm", // VOA Swahili RSS
             "https://rss.dw.com/rdf/rss-kis-all" // DW Swahili
         ]
     };
