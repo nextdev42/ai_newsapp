@@ -353,6 +353,7 @@ async function getArticles() {
             "https://feeds.bbci.co.uk/news/rss.xml",
             "http://rss.cnn.com/rss/edition.rss",
             "https://feeds.nbcnews.com/msnbc/public/news",
+            "https://parstoday.ir/sw/rss"
             "https://feeds.skynews.com/feeds/rss/technology.xml",
             "https://www.aljazeera.com/xml/rss/all.xml",
             "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
