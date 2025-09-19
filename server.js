@@ -206,40 +206,45 @@ async function scrapeRFI() {
 }
 
 async function scrapeBBCSwahili() {
-    try {
-        const res = await makeRequest("https://www.bbc.com/swahili");
-        const $ = cheerio.load(res.data);
-        const articles = [];
+  try {
+    const url = "https://www.bbc.com/swahili";
+    const { data } = await axios.get(url);
+    const $ = cheerio.load(data);
 
-        // Only pick article links (exclude topics pages)
-        $('a[href*="/swahili/articles/"]').each((i, el) => {
-            const $el = $(el);
-            const link = $el.attr('href');
-            const title = $el.find('h3, h2, p, span').first().text().trim();
+    const articles = [];
+    $("a[href*='/swahili/articles/']").each((i, el) => {
+      if (i >= 10) return false;
 
-            if (link && title && title.length > 10) {
-                const $container = $el.closest('div, li, article');
-                let img = $container.find('img').attr('src') || "/default-news.jpg";
+      const link = "https://www.bbc.com" + $(el).attr("href");
+      const title = $(el).text().trim() || $(el).attr("aria-label") || "BBC Swahili";
+      const container = $(el).closest("div");
 
-                articles.push({
-                    title,
-                    link: link.startsWith("http") ? link : `https://www.bbc.com${link}`,
-                    contentSnippet: $container.find('p').text().trim() || "",
-                    pubDate: new Date().toISOString(),
-                    source: "BBC Swahili",
-                    category: "international",
-                    needsTranslation: false,
-                    image: img.startsWith("http") ? img : `https://www.bbc.com${img}`
-                });
-            }
-        });
+      // ✅ description fallback
+      let snippet = container.find("p").first().text().trim();
+      if (!snippet) snippet = $(el).attr("aria-label") || "";
 
-        return articles.slice(0, 10);
-    } catch (err) {
-        console.error("BBC Swahili scraping error:", err.message);
-        return [];
-    }
+      // ✅ image fallback
+      let img = container.find("img").attr("src") || container.find("img").attr("data-src") || "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
+
+      articles.push({
+        title,
+        link,
+        contentSnippet: snippet,
+        pubDate: new Date().toISOString(),
+        source: "BBC Swahili",
+        category: "international",
+        needsTranslation: false,
+        image: img
+      });
+    });
+
+    return articles;
+  } catch (error) {
+    console.error("BBC Swahili scraping error:", error.message);
+    return [];
+  }
 }
+
 
 
 async function scrapeVOASwahili() {
@@ -351,41 +356,64 @@ function getFallbackArticles() {
 }
 
 // ---------------- Article Processing ----------------
-async function processFeedItems(feed, category, url) {
-    if (!feed.items || feed.items.length === 0) return [];
-    
-    return Promise.all(
-        feed.items.slice(0, 5).map(async (item) => {
-            const needsTranslation = !isSwahili(item.title);
-            
-            let title_sw = item.title;
-            let description_sw = item.contentSnippet || item.description || "";
-            
-            if (needsTranslation) {
-                try {
-                    title_sw = await translateToSwahili(item.title);
-                    description_sw = await translateToSwahili(description_sw);
-                } catch (err) {
-                    console.error("Translation error:", err.message);
-                    // Keep original text if translation fails
-                }
-            }
-            
-            return {
-                title: item.title || "",
-                title_sw,
-                link: item.link || url,
-                contentSnippet: item.contentSnippet || item.description || "",
-                description_sw,
-                pubDate: item.pubDate || item.isoDate || new Date().toISOString(),
-                source: feed.title || url,
-                category,
-                needsTranslation,
-                image: extractImageFromItem(item)
-            };
-        })
-    );
+async function processFeedItems(items, source) {
+  const results = [];
+
+  for (const item of items) {
+    let title = item.title || "";
+    let description = item.contentSnippet || item.description || item.content || item.summary || "";
+    let link = item.link || "";
+    let pubDate = item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString();
+
+    // ✅ angalia kama chanzo ni Swahili tayari
+    let isSwahiliSource = source.toLowerCase().includes("swahili");
+
+    // tafsiri kama siyo Kiswahili
+    let title_sw = title;
+    let description_sw = description;
+
+    if (!isSwahiliSource && title) {
+      try {
+        const t = await translate(title, { from: "auto", to: "sw" });
+        title_sw = t.text;
+      } catch (e) {
+        console.error("Translation error (title):", e.message);
+      }
+    }
+
+    if (!isSwahiliSource && description) {
+      try {
+        const t = await translate(description, { from: "auto", to: "sw" });
+        description_sw = t.text;
+      } catch (e) {
+        console.error("Translation error (description):", e.message);
+      }
+    }
+
+    // ✅ fallback image kulingana na chanzo
+    let img = extractImageFromItem(item);
+    if ((!img || img.includes("default-news")) && source.includes("VOA")) {
+      img = "https://www.voaswahili.com/Content/responsive/VOA/sw/img/logo.png";
+    }
+    if ((!img || img.includes("default-news")) && source.includes("BBC")) {
+      img = "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
+    }
+
+    results.push({
+      title: title_sw,
+      link,
+      contentSnippet: description_sw,
+      pubDate,
+      source,
+      category: item.categories ? item.categories[0] : "international",
+      needsTranslation: !isSwahiliSource,
+      image: img
+    });
+  }
+
+  return results;
 }
+
 
 // ---------------- Main Article Fetch ----------------
 async function getArticles() {
