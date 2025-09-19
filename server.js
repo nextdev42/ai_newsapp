@@ -118,14 +118,24 @@ const parser = new Parser({
     }
 });
 
-async function fetchFeed(url) {
-    try {
-        const res = await makeRequest(url);
-        return await parser.parseString(res.data);
-    } catch (err) {
-        console.error("Feed fetch error:", err.message, "| URL:", url);
-        return { items: [], title: url, error: err.message };
+async function fetchFeed(url, source) {
+  try {
+    const feed = await parser.parseURL(url);
+
+    // ✅ normalize items
+    const items = Array.isArray(feed.items) ? feed.items : [];
+
+    if (items.length === 0) {
+      console.warn(`⚠️ No items found for ${source} (${url})`);
+      return [];
     }
+
+    const processed = await processFeedItems(items, source);
+    return processed;
+  } catch (err) {
+    console.error(`Error processing feed ${url}:`, err.message);
+    return [];
+  }
 }
 
 // ---------------- Image Extraction ----------------
