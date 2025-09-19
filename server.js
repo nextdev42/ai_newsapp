@@ -260,7 +260,7 @@ async function scrapeBBCSwahili() {
 
 async function scrapeVOASwahili() {
     try {
-        const res = await makeRequest("https://www.voaswahili.com/");
+        const res = await makeRequest("https://www.voaswahili.com/api/zkgoqpl-vomx-tpejmmqp/");
         const $ = cheerio.load(res.data);
         const articles = [];
         
