@@ -1,0 +1,35 @@
+name: Update Mwananchi News
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # every hour
+  workflow_dispatch:       # allow manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install scrapy scrapy-user-agents
+
+      - name: Run Scrapy spider
+        run: |
+          cd habarihub
+          scrapy crawl mwananchi -O ../mwananchi.json
+
+      - name: Commit updated JSON
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ../mwananchi.json
+          git commit -m "Update Mwananchi news" || echo "No changes to commit"
+          git push
