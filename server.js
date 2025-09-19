@@ -449,6 +449,7 @@ async function getArticles() {
         ],
         swahili: [
             "https://www.voaswahili.com/api/zkgoqpl-vomx-tpejmmqp", // VOA Swahili RSS
+            "https://feeds.bbci.co.uk/swahili/rss.xml",
             "https://rss.dw.com/rdf/rss-kis-all" // DW Swahili
         ]
     };
