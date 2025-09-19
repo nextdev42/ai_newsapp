@@ -211,17 +211,21 @@ async function scrapeBBCSwahili() {
         const $ = cheerio.load(res.data);
         const articles = [];
         
-        $('[data-testid="hard-news-unit"], .gs-c-promo').each((i, el) => {
+        // Updated selectors for BBC Swahili
+        $('a[href*="/swahili/articles/"], a[href*="/swahili/topics/"]').each((i, el) => {
             const $el = $(el);
-            const link = $el.find('a').attr('href');
-            const title = $el.find('h2, h3, h4, p').first().text().trim();
+            const link = $el.attr('href');
+            const title = $el.find('h3, h2, p, span').first().text().trim();
             
-            if (link && title) {
-                const img = $el.find('img').attr('src') || "/default-news.jpg";
+            if (link && title && title.length > 10) {
+                // Find the parent container that might have an image
+                const $container = $el.closest('div, li, article');
+                let img = $container.find('img').attr('src') || "/default-news.jpg";
+                
                 articles.push({
                     title,
                     link: link.startsWith("http") ? link : `https://www.bbc.com${link}`,
-                    contentSnippet: $el.find('p').text().trim() || "",
+                    contentSnippet: $container.find('p').text().trim() || "",
                     pubDate: new Date().toISOString(),
                     source: "BBC Swahili",
                     category: "international",
@@ -244,17 +248,23 @@ async function scrapeVOASwahili() {
         const $ = cheerio.load(res.data);
         const articles = [];
         
-        $('.media-block, article, .card, .media-content').each((i, el) => {
+        // Updated selectors for VOA Swahili
+        $('a[href*="/a/"]').each((i, el) => {
             const $el = $(el);
-            const link = $el.find('a').attr('href');
-            const title = $el.find('h3, h4, .title, .headline').text().trim();
+            const link = $el.attr('href');
+            const title = $el.find('h3, h4, h2, .title, .teaser__title').text().trim();
             
-            if (link && title) {
-                const img = $el.find('img').attr('src') || $el.find('img').attr('data-src') || "/default-news.jpg";
+            if (link && title && title.length > 10) {
+                // Find the parent container that might have an image
+                const $container = $el.closest('div, article, li');
+                let img = $container.find('img').attr('src') || 
+                         $container.find('img').attr('data-src') || 
+                         "/default-news.jpg";
+                
                 articles.push({
                     title,
                     link: link.startsWith("http") ? link : `https://www.voaswahili.com${link}`,
-                    contentSnippet: $el.find('p, .teaser, .summary').text().trim() || "",
+                    contentSnippet: $container.find('p, .teaser__text').text().trim() || "",
                     pubDate: new Date().toISOString(),
                     source: "VOA Swahili",
                     category: "swahili",
@@ -267,6 +277,45 @@ async function scrapeVOASwahili() {
         return articles.slice(0, 10);
     } catch (err) {
         console.error("VOA Swahili scraping error:", err.message);
+        return [];
+    }
+}
+
+async function scrapeAlJazeera() {
+    try {
+        const res = await makeRequest("https://www.aljazeera.com/");
+        const $ = cheerio.load(res.data);
+        const articles = [];
+        
+        // Selectors for Al Jazeera
+        $('a[href*="/news/"], a[href*="/program/"]').each((i, el) => {
+            const $el = $(el);
+            const link = $el.attr('href');
+            const title = $el.find('h3, h2, span').first().text().trim();
+            
+            if (link && title && title.length > 10 && !link.includes('/video/')) {
+                // Find the parent container that might have an image
+                const $container = $el.closest('div, article, li');
+                let img = $container.find('img').attr('src') || 
+                         $container.find('img').attr('data-src') || 
+                         "/default-news.jpg";
+                
+                articles.push({
+                    title,
+                    link: link.startsWith("http") ? link : `https://www.aljazeera.com${link}`,
+                    contentSnippet: $container.find('p').text().trim() || "",
+                    pubDate: new Date().toISOString(),
+                    source: "Al Jazeera",
+                    category: "international",
+                    needsTranslation: true, // Al Jazeera is in English, needs translation
+                    image: img.startsWith("http") ? img : `https://www.aljazeera.com${img}`
+                });
+            }
+        });
+        
+        return articles.slice(0, 10);
+    } catch (err) {
+        console.error("Al Jazeera scraping error:", err.message);
         return [];
     }
 }
@@ -353,9 +402,6 @@ async function getArticles() {
             "https://feeds.bbci.co.uk/news/rss.xml",
             "http://rss.cnn.com/rss/edition.rss",
             "https://feeds.nbcnews.com/msnbc/public/news",
-            "https://parstoday.ir/sw/rss",
-            "https://feeds.skynews.com/feeds/rss/technology.xml",
-            "https://www.aljazeera.com/xml/rss/all.xml",
             "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
         ],
         sports: [
@@ -395,6 +441,9 @@ async function getArticles() {
     );
     feedPromises.push(
         scrapeVOASwahili().then(items => articles = articles.concat(items))
+    );
+    feedPromises.push(
+        scrapeAlJazeera().then(items => articles = articles.concat(items))
     );
 
     try {
