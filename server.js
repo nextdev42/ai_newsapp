@@ -56,9 +56,23 @@ const parser = new Parser({
   }
 });
 
+const headers = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Connection": "keep-alive"
+};
+
 async function fetchFeed(url) {
   try {
-    const res = await axios.get(url, { timeout: 20000 });
+    const res = await axios.get(url, { timeout: 20000, headers });
+
+    // Handle JSON feeds like VOA
+    if (res.headers['content-type']?.includes('application/json')) {
+      const items = Array.isArray(res.data.items) ? res.data.items : [];
+      return { title: res.data.title || url, items };
+    }
+
     return await parser.parseString(res.data);
   } catch (err) {
     console.error("Feed fetch error:", err.message, "| URL:", url);
@@ -79,10 +93,10 @@ function extractImageFromItem(item) {
   return imgs.find(src => src.startsWith("http")) || "/default-news.jpg";
 }
 
-// ---------------- Scrapers for Non-RSS ----------------
+// ---------------- Non-RSS Scrapers ----------------
 async function scrapeRFI() {
   try {
-    const res = await axios.get("https://www.rfi.fr/sw/");
+    const res = await axios.get("https://www.rfi.fr/sw/", { headers });
     const $ = cheerio.load(res.data);
     const articles = [];
     $("article a").each((i, el) => {
@@ -110,7 +124,7 @@ async function scrapeRFI() {
 
 async function scrapeBBCSwahili() {
   try {
-    const res = await axios.get("https://www.bbc.com/swahili");
+    const res = await axios.get("https://www.bbc.com/swahili", { headers });
     const $ = cheerio.load(res.data);
     const articles = [];
     $("a.gs-c-promo-heading").each((i, el) => {
@@ -142,11 +156,9 @@ async function getArticles() {
     international: [
       "https://feeds.bbci.co.uk/news/rss.xml",
       "http://rss.cnn.com/rss/edition.rss",
-      //"https://feeds.reuters.com/reuters/topNews",
       "https://parstoday.ir/sw/rss",
       "https://www.voaswahili.com/api/z-_ktl-vomx-tperr-r",
-      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-      "https://www.msnbc.com/feeds/latest"
+      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
     ],
     sports: [
       "https://www.bbc.com/sport/africa/rss.xml",
