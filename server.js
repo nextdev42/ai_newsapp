@@ -2,7 +2,7 @@ import express from "express";
 import Parser from "rss-parser";
 import axios from "axios";
 import translate from "@iamtraction/google-translate";
-import * as cheerio from "cheerio";
+import puppeteer from "puppeteer";
 
 const app = express();
 app.set("view engine", "ejs");
@@ -56,23 +56,9 @@ const parser = new Parser({
   }
 });
 
-const headers = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.9",
-  "Connection": "keep-alive"
-};
-
 async function fetchFeed(url) {
   try {
-    const res = await axios.get(url, { timeout: 20000, headers });
-
-    // Handle JSON feeds like VOA
-    if (res.headers['content-type']?.includes('application/json')) {
-      const items = Array.isArray(res.data.items) ? res.data.items : [];
-      return { title: res.data.title || url, items };
-    }
-
+    const res = await axios.get(url, { timeout: 20000 });
     return await parser.parseString(res.data);
   } catch (err) {
     console.error("Feed fetch error:", err.message, "| URL:", url);
@@ -93,59 +79,71 @@ function extractImageFromItem(item) {
   return imgs.find(src => src.startsWith("http")) || "/default-news.jpg";
 }
 
-// ---------------- Non-RSS Scrapers ----------------
+// ---------------- Puppeteer Scrapers ----------------
 async function scrapeRFI() {
   try {
-    const res = await axios.get("https://www.rfi.fr/sw/", { headers });
-    const $ = cheerio.load(res.data);
-    const articles = [];
-    $("article a").each((i, el) => {
-      const link = $(el).attr("href");
-      const title = $(el).text().trim();
-      if (link && title) {
-        articles.push({
-          title,
-          link: link.startsWith("http") ? link : `https://www.rfi.fr${link}`,
-          contentSnippet: "",
-          pubDate: new Date().toISOString(),
-          source: "RFI Swahili",
-          category: "international",
-          needsTranslation: false,
-          image: "/default-news.jpg"
-        });
-      }
+    const browser = await puppeteer.launch({ args: ['--no-sandbox'], headless: true });
+    const page = await browser.newPage();
+    await page.goto("https://www.rfi.fr/sw/", { waitUntil: "domcontentloaded" });
+
+    const articles = await page.evaluate(() => {
+      const list = [];
+      document.querySelectorAll("article a").forEach(el => {
+        const title = el.innerText.trim();
+        const link = el.href;
+        if (title && link) list.push({ title, link });
+      });
+      return list;
     });
-    return articles.slice(0, 10);
+
+    await browser.close();
+
+    return articles.slice(0, 10).map(a => ({
+      title: a.title,
+      link: a.link.startsWith("http") ? a.link : `https://www.rfi.fr${a.link}`,
+      contentSnippet: "",
+      pubDate: new Date().toISOString(),
+      source: "RFI Swahili",
+      category: "international",
+      needsTranslation: false,
+      image: "/default-news.jpg"
+    }));
   } catch (err) {
-    console.error("RFI scraping error:", err.message);
+    console.error("RFI Puppeteer scraping error:", err.message);
     return [];
   }
 }
 
 async function scrapeBBCSwahili() {
   try {
-    const res = await axios.get("https://www.bbc.com/swahili", { headers });
-    const $ = cheerio.load(res.data);
-    const articles = [];
-    $("a.gs-c-promo-heading").each((i, el) => {
-      const link = $(el).attr("href");
-      const title = $(el).text().trim();
-      if (link && title) {
-        articles.push({
-          title,
-          link: link.startsWith("http") ? link : `https://www.bbc.com${link}`,
-          contentSnippet: "",
-          pubDate: new Date().toISOString(),
-          source: "BBC Swahili",
-          category: "international",
-          needsTranslation: false,
-          image: "/default-news.jpg"
-        });
-      }
+    const browser = await puppeteer.launch({ args: ['--no-sandbox'], headless: true });
+    const page = await browser.newPage();
+    await page.goto("https://www.bbc.com/swahili", { waitUntil: "domcontentloaded" });
+
+    const articles = await page.evaluate(() => {
+      const list = [];
+      document.querySelectorAll("a.gs-c-promo-heading").forEach(el => {
+        const title = el.innerText.trim();
+        const link = el.href;
+        if (title && link) list.push({ title, link });
+      });
+      return list;
     });
-    return articles.slice(0, 10);
+
+    await browser.close();
+
+    return articles.slice(0, 10).map(a => ({
+      title: a.title,
+      link: a.link.startsWith("http") ? a.link : `https://www.bbc.com${a.link}`,
+      contentSnippet: "",
+      pubDate: new Date().toISOString(),
+      source: "BBC Swahili",
+      category: "international",
+      needsTranslation: false,
+      image: "/default-news.jpg"
+    }));
   } catch (err) {
-    console.error("BBC Swahili scraping error:", err.message);
+    console.error("BBC Swahili Puppeteer scraping error:", err.message);
     return [];
   }
 }
@@ -156,9 +154,10 @@ async function getArticles() {
     international: [
       "https://feeds.bbci.co.uk/news/rss.xml",
       "http://rss.cnn.com/rss/edition.rss",
+      "https://rss.dw.com/rdf/rss-kis-all",
       "https://parstoday.ir/sw/rss",
-      "https://www.voaswahili.com/api/z-_ktl-vomx-tperr-r",
-      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+      "https://www.msnbc.com/feeds/latest"
     ],
     sports: [
       "https://www.bbc.com/sport/africa/rss.xml",
@@ -187,12 +186,12 @@ async function getArticles() {
     }
   }
 
-  // Scrape RFI and BBC Swahili
+  // Puppeteer scrape for RFI and BBC Swahili
   const rfiArticles = await scrapeRFI();
   const bbcSwArticles = await scrapeBBCSwahili();
   articles = articles.concat(rfiArticles, bbcSwArticles);
 
-  // Sort by date, latest first
+  // Sort by date
   articles = articles.filter(a => a.pubDate)
                      .sort((a,b) => new Date(b.pubDate) - new Date(a.pubDate))
                      .slice(0, 50);
