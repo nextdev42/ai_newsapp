@@ -13,185 +13,45 @@
             --dark: #202124;
             --gray: #5f6368;
         }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: var(--dark);
-            background-color: #f5f5f5;
-        }
-        
-        header {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            padding: 1rem;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        
-        .logo {
-            font-size: 2rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-        }
-        
-        .tagline {
-            font-size: 1rem;
-            opacity: 0.9;
-        }
-        
-        .language-notice {
-            background-color: #ffe066;
-            color: #333;
-            padding: 0.5rem;
-            text-align: center;
-            font-size: 0.9rem;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 1rem;
-        }
-        
-        .category-tabs {
-            display: flex;
-            justify-content: center;
-            margin: 1.5rem 0;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-        
-        .category-tab {
-            padding: 0.5rem 1rem;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .category-tab.active, .category-tab:hover {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-        
-        .news-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1.5rem;
-        }
-        
-        .news-card {
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-        }
-        
-        .news-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .news-image {
-            width: 100%;
-            height: 180px;
-            object-fit: cover;
-        }
-        
-        .no-image {
-            width: 100%;
-            height: 180px;
-            background: #eee;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--gray);
-        }
-        
-        .news-content {
-            padding: 1rem;
-        }
-        
-        .news-source {
-            font-size: 0.8rem;
-            color: var(--primary);
-            margin-bottom: 0.5rem;
-            display: block;
-        }
-        
-        .news-title {
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
-            color: var(--dark);
-        }
-        
-        .news-desc {
-            font-size: 0.9rem;
-            color: var(--gray);
-            margin-bottom: 1rem;
-        }
-        
-        .news-meta {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.8rem;
-            color: var(--gray);
-        }
-        
-        .news-category {
-            background: var(--accent);
-            color: var(--dark);
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            font-weight: bold;
-        }
-        
-        .scraped-notice {
-            font-size: 0.7rem;
-            color: #888;
-            margin-top: 0.5rem;
-            font-style: italic;
-        }
-        
-        .translation-notice {
-            font-size: 0.7rem;
-            color: #e74c3c;
-            margin-top: 0.5rem;
-        }
-        
-        footer {
-            text-align: center;
-            padding: 2rem 1rem;
-            margin-top: 2rem;
-            background: var(--dark);
-            color: white;
-        }
-        
-        @media (max-width: 768px) {
-            .news-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .category-tabs {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            .category-tab {
-                width: 100%;
-                text-align: center;
-            }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height:1.6; color:var(--dark); background-color:#f5f5f5; }
+
+        header { background: linear-gradient(135deg,var(--primary),var(--secondary)); color:white; padding:1rem; text-align:center; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
+        .logo { font-size:2rem; font-weight:bold; margin-bottom:0.5rem; }
+        .tagline { font-size:1rem; opacity:0.9; }
+
+        .language-notice { background-color:#ffe066; color:#333; padding:0.5rem; text-align:center; font-size:0.9rem; }
+
+        .container { max-width:1200px; margin:0 auto; padding:1rem; }
+
+        .category-tabs { display:flex; justify-content:center; margin:1.5rem 0; flex-wrap:wrap; gap:0.5rem; }
+        .category-tab { padding:0.5rem 1rem; background:white; border:1px solid #ddd; border-radius:20px; cursor:pointer; transition:all 0.3s ease; }
+        .category-tab.active, .category-tab:hover { background:var(--primary); color:white; border-color:var(--primary); }
+
+        .news-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:1.5rem; }
+
+        .news-card { background:white; border-radius:8px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.1); transition:transform 0.3s ease; display:flex; flex-direction:column; }
+        .news-card:hover { transform:translateY(-5px); }
+
+        .news-image { width:100%; height:180px; object-fit:cover; }
+        .no-image { width:100%; height:180px; background:#eee; display:flex; align-items:center; justify-content:center; color:var(--gray); }
+
+        .news-content { padding:1rem; flex:1; display:flex; flex-direction:column; }
+        .news-source { font-size:0.8rem; color:var(--primary); margin-bottom:0.5rem; display:block; }
+        .news-title { font-size:1.1rem; margin-bottom:0.5rem; color:var(--dark); }
+        .news-desc { font-size:0.9rem; color:var(--gray); margin-bottom:1rem; flex:1; }
+        .news-meta { display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; color:var(--gray); }
+        .news-category { background:var(--accent); color:var(--dark); padding:0.2rem 0.5rem; border-radius:4px; font-size:0.7rem; font-weight:bold; }
+        .scraped-notice { font-size:0.7rem; color:#888; margin-top:0.5rem; font-style:italic; }
+        .translation-notice { font-size:0.7rem; color:#e74c3c; margin-top:0.5rem; }
+
+        footer { text-align:center; padding:2rem 1rem; margin-top:2rem; background:var(--dark); color:white; }
+
+        @media(max-width:768px) {
+            .news-grid { grid-template-columns:1fr; }
+            .category-tabs { flex-direction:column; align-items:center; }
+            .category-tab { width:100%; text-align:center; }
         }
     </style>
 </head>
@@ -200,11 +60,11 @@
         <div class="logo">HabariHub</div>
         <div class="tagline">Ukurasa wako wa habari za Tanzania na kimataifa</div>
     </header>
-    
+
     <div class="language-notice">
         Habari zote zimetafsiriwa kwa Kiswahili kwa uhakika wa wasomaji wetu.
     </div>
-    
+
     <div class="container">
         <div class="category-tabs">
             <div class="category-tab active" data-category="all">Habari Zote</div>
@@ -213,7 +73,7 @@
             <div class="category-tab" data-category="sports">Michezo</div>
             <div class="category-tab" data-category="international">Kimataifa</div>
         </div>
-        
+
         <div class="news-grid">
             <% articles.forEach(article => { %>
                 <div class="news-card" data-category="<%= article.category %>">
@@ -222,23 +82,23 @@
                     <% } else { %>
                         <div class="no-image">Hakuna Picha</div>
                     <% } %>
-                    
+
                     <div class="news-content">
                         <span class="news-source"><%= article.source %></span>
-                        <h3 class="news-title"><%= article.title_sw %></h3>
+                        <h3 class="news-title"><a href="<%= article.link %>" target="_blank"><%= article.title_sw %></a></h3>
                         <% if (article.description_sw) { %>
                             <p class="news-desc"><%= article.description_sw %></p>
                         <% } %>
-                        
+
                         <div class="news-meta">
-                            <span><%= new Date(article.pubDate).toLocaleDateString('sw-TZ') %></span>
+                            <span><%= article.pubDate ? new Date(article.pubDate).toLocaleDateString('sw-TZ') : "Tarehe isiyojulikana" %></span>
                             <span class="news-category"><%= article.category %></span>
                         </div>
-                        
-                        <% if (article.link && article.link.includes('thecitizen') || article.link.includes('theeastafrican') || article.link.includes('espn')) { %>
+
+                        <% if (["thecitizen.co.tz","theeastafrican.co.ke","espn.com","mwananchi.co.tz"].some(domain => article.link.includes(domain))) { %>
                             <p class="scraped-notice">Imepakuliwa moja kwa moja kutoka tovuti</p>
                         <% } %>
-                        
+
                         <% if (article.needsTranslation && article.title !== article.title_sw) { %>
                             <p class="translation-notice">*Imetafsiriwa kiotomatiki</p>
                         <% } %>
@@ -247,35 +107,25 @@
             <% }); %>
         </div>
     </div>
-    
+
     <footer>
-        <p>HabariHub &copy; 2023 - Huduma bora kwa habari za Tanzania na duniani</p>
-        <p>Powered by BBC, CNN, Reuters, The Citizen, The East African, ESPN, na vyanzo vingine vya habari</p>
+        <p>HabariHub &copy; 2025 - Huduma bora kwa habari za Tanzania na duniani</p>
+        <p>Powered by BBC, CNN, Reuters, The Citizen, The East African, ESPN, Mwananchi, na vyanzo vingine vya habari</p>
     </footer>
 
     <script>
-        // Category filtering functionality
         document.addEventListener('DOMContentLoaded', function() {
             const tabs = document.querySelectorAll('.category-tab');
             const newsCards = document.querySelectorAll('.news-card');
-            
+
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
-                    // Remove active class from all tabs
                     tabs.forEach(t => t.classList.remove('active'));
-                    
-                    // Add active class to clicked tab
                     tab.classList.add('active');
-                    
+
                     const category = tab.getAttribute('data-category');
-                    
-                    // Show/hide news cards based on category
                     newsCards.forEach(card => {
-                        if (category === 'all' || card.getAttribute('data-category') === category) {
-                            card.style.display = 'block';
-                        } else {
-                            card.style.display = 'none';
-                        }
+                        card.style.display = (category === 'all' || card.getAttribute('data-category') === category) ? 'flex' : 'none';
                     });
                 });
             });
