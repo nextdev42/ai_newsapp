@@ -244,7 +244,7 @@ async function scrapeVOASwahili() {
         const $ = cheerio.load(res.data);
         const articles = [];
         
-        $('.media-block, article, .card').each((i, el) => {
+        $('.media-block, article, .card, .media-content').each((i, el) => {
             const $el = $(el);
             const link = $el.find('a').attr('href');
             const title = $el.find('h3, h4, .title, .headline').text().trim();
@@ -257,7 +257,7 @@ async function scrapeVOASwahili() {
                     contentSnippet: $el.find('p, .teaser, .summary').text().trim() || "",
                     pubDate: new Date().toISOString(),
                     source: "VOA Swahili",
-                    category: "international",
+                    category: "swahili",
                     needsTranslation: false,
                     image: img.startsWith("http") ? img : `https://www.voaswahili.com${img}`
                 });
@@ -353,6 +353,8 @@ async function getArticles() {
             "https://feeds.bbci.co.uk/news/rss.xml",
             "http://rss.cnn.com/rss/edition.rss",
             "https://feeds.nbcnews.com/msnbc/public/news",
+            "https://feeds.skynews.com/feeds/rss/technology.xml",
+            "https://www.aljazeera.com/xml/rss/all.xml",
             "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
         ],
         sports: [
@@ -360,7 +362,7 @@ async function getArticles() {
             "https://www.espn.com/espn/rss/news"
         ],
         swahili: [
-           // "https://www.voaswahili.com/api/zq$omekvm", // VOA Swahili RSS
+            "https://www.voaswahili.com/api/zkgoqpl-vomx-tpejmmqp", // VOA Swahili RSS
             "https://rss.dw.com/rdf/rss-kis-all" // DW Swahili
         ]
     };
