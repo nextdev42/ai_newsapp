@@ -210,18 +210,17 @@ async function scrapeBBCSwahili() {
         const res = await makeRequest("https://www.bbc.com/swahili");
         const $ = cheerio.load(res.data);
         const articles = [];
-        
-        // Updated selectors for BBC Swahili
-        $('a[href*="/swahili/articles/"], a[href*="/swahili/topics/"]').each((i, el) => {
+
+        // Only pick article links (exclude topics pages)
+        $('a[href*="/swahili/articles/"]').each((i, el) => {
             const $el = $(el);
             const link = $el.attr('href');
             const title = $el.find('h3, h2, p, span').first().text().trim();
-            
+
             if (link && title && title.length > 10) {
-                // Find the parent container that might have an image
                 const $container = $el.closest('div, li, article');
                 let img = $container.find('img').attr('src') || "/default-news.jpg";
-                
+
                 articles.push({
                     title,
                     link: link.startsWith("http") ? link : `https://www.bbc.com${link}`,
@@ -234,13 +233,14 @@ async function scrapeBBCSwahili() {
                 });
             }
         });
-        
+
         return articles.slice(0, 10);
     } catch (err) {
         console.error("BBC Swahili scraping error:", err.message);
         return [];
     }
 }
+
 
 async function scrapeVOASwahili() {
     try {
