@@ -118,24 +118,14 @@ const parser = new Parser({
     }
 });
 
-async function fetchFeed(url, source) {
-  try {
-    const feed = await parser.parseURL(url);
-
-    // ✅ normalize items
-    const items = Array.isArray(feed.items) ? feed.items : [];
-
-    if (items.length === 0) {
-      console.warn(`⚠️ No items found for ${source} (${url})`);
-      return [];
+async function fetchFeed(url) {
+    try {
+        const res = await makeRequest(url);
+        return await parser.parseString(res.data);
+    } catch (err) {
+        console.error("Feed fetch error:", err.message, "| URL:", url);
+        return { items: [], title: url, error: err.message };
     }
-
-    const processed = await processFeedItems(items, source);
-    return processed;
-  } catch (err) {
-    console.error(`Error processing feed ${url}:`, err.message);
-    return [];
-  }
 }
 
 // ---------------- Image Extraction ----------------
@@ -218,27 +208,40 @@ async function scrapeRFI() {
 async function scrapeBBCSwahili() {
   try {
     const url = "https://www.bbc.com/swahili";
-    const { data } = await axios.get(url);
+    const { data } = await axios.get(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
     const $ = cheerio.load(data);
 
     const articles = [];
     $("a[href*='/swahili/articles/']").each((i, el) => {
       if (i >= 10) return false;
 
-      const link = "https://www.bbc.com" + $(el).attr("href");
+      const link = $(el).attr("href");
+      if (!link) return;
+      
+      const fullLink = link.startsWith("http") ? link : `https://www.bbc.com${link}`;
       const title = $(el).text().trim() || $(el).attr("aria-label") || "BBC Swahili";
       const container = $(el).closest("div");
 
-      // ✅ description fallback
+      // Extract description
       let snippet = container.find("p").first().text().trim();
       if (!snippet) snippet = $(el).attr("aria-label") || "";
 
-      // ✅ image fallback
-      let img = container.find("img").attr("src") || container.find("img").attr("data-src") || "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
+      // Extract image
+      let img = container.find("img").attr("src") || 
+               container.find("img").attr("data-src") || 
+               "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
+
+      if (img.startsWith("//")) {
+        img = "https:" + img;
+      }
 
       articles.push({
         title,
-        link,
+        link: fullLink,
         contentSnippet: snippet,
         pubDate: new Date().toISOString(),
         source: "BBC Swahili",
@@ -255,39 +258,81 @@ async function scrapeBBCSwahili() {
   }
 }
 
-
-
 async function scrapeVOASwahili() {
     try {
         const res = await makeRequest("https://www.voaswahili.com/");
         const $ = cheerio.load(res.data);
         const articles = [];
         
-        // Updated selectors for VOA Swahili
-        $('a[href*="/a/"]').each((i, el) => {
+        // VOA Swahili structure - look for article elements
+        $('article').each((i, el) => {
             const $el = $(el);
-            const link = $el.attr('href');
-            const title = $el.find('h3, h4, h2, .title, .teaser__title').text().trim();
+            const link = $el.find('a').attr('href');
+            const title = $el.find('h2, h3, h4').first().text().trim();
             
             if (link && title && title.length > 10) {
-                // Find the parent container that might have an image
-                const $container = $el.closest('div, article, li');
-                let img = $container.find('img').attr('src') || 
-                         $container.find('img').attr('data-src') || 
+                // Extract image
+                let img = $el.find('img').attr('src') || 
+                         $el.find('img').attr('data-src') || 
                          "/default-news.jpg";
+                
+                if (img.startsWith("//")) {
+                    img = "https:" + img;
+                } else if (!img.startsWith("http") && !img.startsWith("/default-news.jpg")) {
+                    img = `https://www.voaswahili.com${img}`;
+                }
+                
+                // Extract description
+                const description = $el.find('p').first().text().trim() || 
+                                  $el.find('[class*="teaser"], [class*="summary"]').text().trim() || "";
                 
                 articles.push({
                     title,
                     link: link.startsWith("http") ? link : `https://www.voaswahili.com${link}`,
-                    contentSnippet: $container.find('p, .teaser__text').text().trim() || "",
+                    contentSnippet: description,
                     pubDate: new Date().toISOString(),
                     source: "VOA Swahili",
                     category: "swahili",
                     needsTranslation: false,
-                    image: img.startsWith("http") ? img : `https://www.voaswahili.com${img}`
+                    image: img
                 });
             }
         });
+
+        // If the article selector doesn't work, try looking for specific classes
+        if (articles.length === 0) {
+            $('.media-block, .teaser, .story').each((i, el) => {
+                const $el = $(el);
+                const link = $el.find('a').attr('href');
+                const title = $el.find('h2, h3, h4').first().text().trim();
+                
+                if (link && title && title.length > 10) {
+                    let img = $el.find('img').attr('src') || 
+                             $el.find('img').attr('data-src') || 
+                             "/default-news.jpg";
+                    
+                    if (img.startsWith("//")) {
+                        img = "https:" + img;
+                    } else if (!img.startsWith("http") && !img.startsWith("/default-news.jpg")) {
+                        img = `https://www.voaswahili.com${img}`;
+                    }
+                    
+                    const description = $el.find('p').first().text().trim() || 
+                                      $el.find('[class*="teaser"], [class*="summary"]').text().trim() || "";
+                    
+                    articles.push({
+                        title,
+                        link: link.startsWith("http") ? link : `https://www.voaswahili.com${link}`,
+                        contentSnippet: description,
+                        pubDate: new Date().toISOString(),
+                        source: "VOA Swahili",
+                        category: "swahili",
+                        needsTranslation: false,
+                        image: img
+                    });
+                }
+            });
+        }
         
         return articles.slice(0, 10);
     } catch (err) {
@@ -366,64 +411,41 @@ function getFallbackArticles() {
 }
 
 // ---------------- Article Processing ----------------
-async function processFeedItems(items, source) {
-  const results = [];
-
-  for (const item of items) {
-    let title = item.title || "";
-    let description = item.contentSnippet || item.description || item.content || item.summary || "";
-    let link = item.link || "";
-    let pubDate = item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString();
-
-    // ✅ angalia kama chanzo ni Swahili tayari
-    let isSwahiliSource = source.toLowerCase().includes("swahili");
-
-    // tafsiri kama siyo Kiswahili
-    let title_sw = title;
-    let description_sw = description;
-
-    if (!isSwahiliSource && title) {
-      try {
-        const t = await translate(title, { from: "auto", to: "sw" });
-        title_sw = t.text;
-      } catch (e) {
-        console.error("Translation error (title):", e.message);
-      }
-    }
-
-    if (!isSwahiliSource && description) {
-      try {
-        const t = await translate(description, { from: "auto", to: "sw" });
-        description_sw = t.text;
-      } catch (e) {
-        console.error("Translation error (description):", e.message);
-      }
-    }
-
-    // ✅ fallback image kulingana na chanzo
-    let img = extractImageFromItem(item);
-    if ((!img || img.includes("default-news")) && source.includes("VOA")) {
-      img = "https://www.voaswahili.com/Content/responsive/VOA/sw/img/logo.png";
-    }
-    if ((!img || img.includes("default-news")) && source.includes("BBC")) {
-      img = "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
-    }
-
-    results.push({
-      title: title_sw,
-      link,
-      contentSnippet: description_sw,
-      pubDate,
-      source,
-      category: item.categories ? item.categories[0] : "international",
-      needsTranslation: !isSwahiliSource,
-      image: img
-    });
-  }
-
-  return results;
+async function processFeedItems(feed, category, url) {
+    if (!feed.items || feed.items.length === 0) return [];
+    
+    return Promise.all(
+        feed.items.slice(0, 5).map(async (item) => {
+            const needsTranslation = !isSwahili(item.title);
+            
+            let title_sw = item.title;
+            let description_sw = item.contentSnippet || item.description || "";
+            
+            if (needsTranslation) {
+                try {
+                    title_sw = await translateToSwahili(item.title);
+                    description_sw = await translateToSwahili(description_sw);
+                } catch (err) {
+                    console.error("Translation error:", err.message);
+                    // Keep original text if translation fails
+                }
+            }
+            
+            return {
+                title: item.title || "",
+                title_sw,
+                link: item.link || url,
+                contentSnippet: item.contentSnippet || item.description || "",
+                description_sw,
+                pubDate: item.pubDate || item.isoDate || new Date().toISOString(),
+                source: feed.title || url,
+                category,
+                needsTranslation,
+                image: extractImageFromItem(item)
+            };
+        })
+    );
 }
-
 
 // ---------------- Main Article Fetch ----------------
 async function getArticles() {
