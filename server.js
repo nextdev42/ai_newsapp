@@ -2,7 +2,7 @@ import express from "express";
 import Parser from "rss-parser";
 import axios from "axios";
 import translate from "@iamtraction/google-translate";
-import puppeteer from "puppeteer";
+import cheerio from "cheerio";
 
 const app = express();
 app.set("view engine", "ejs");
@@ -79,71 +79,59 @@ function extractImageFromItem(item) {
   return imgs.find(src => src.startsWith("http")) || "/default-news.jpg";
 }
 
-// ---------------- Puppeteer Scrapers ----------------
+// ---------------- Cheerio Scrapers ----------------
 async function scrapeRFI() {
   try {
-    const browser = await puppeteer.launch({ args: ['--no-sandbox'], headless: true });
-    const page = await browser.newPage();
-    await page.goto("https://www.rfi.fr/sw/", { waitUntil: "domcontentloaded" });
-
-    const articles = await page.evaluate(() => {
-      const list = [];
-      document.querySelectorAll("article a").forEach(el => {
-        const title = el.innerText.trim();
-        const link = el.href;
-        if (title && link) list.push({ title, link });
-      });
-      return list;
+    const res = await axios.get("https://www.rfi.fr/sw/");
+    const $ = cheerio.load(res.data);
+    const articles = [];
+    $("article a").each((i, el) => {
+      const link = $(el).attr("href");
+      const title = $(el).text().trim();
+      if (link && title) {
+        articles.push({
+          title,
+          link: link.startsWith("http") ? link : `https://www.rfi.fr${link}`,
+          contentSnippet: "",
+          pubDate: new Date().toISOString(),
+          source: "RFI Swahili",
+          category: "international",
+          needsTranslation: false,
+          image: "/default-news.jpg"
+        });
+      }
     });
-
-    await browser.close();
-
-    return articles.slice(0, 10).map(a => ({
-      title: a.title,
-      link: a.link.startsWith("http") ? a.link : `https://www.rfi.fr${a.link}`,
-      contentSnippet: "",
-      pubDate: new Date().toISOString(),
-      source: "RFI Swahili",
-      category: "international",
-      needsTranslation: false,
-      image: "/default-news.jpg"
-    }));
+    return articles.slice(0, 10);
   } catch (err) {
-    console.error("RFI Puppeteer scraping error:", err.message);
+    console.error("RFI scraping error:", err.message);
     return [];
   }
 }
 
 async function scrapeBBCSwahili() {
   try {
-    const browser = await puppeteer.launch({ args: ['--no-sandbox'], headless: true });
-    const page = await browser.newPage();
-    await page.goto("https://www.bbc.com/swahili", { waitUntil: "domcontentloaded" });
-
-    const articles = await page.evaluate(() => {
-      const list = [];
-      document.querySelectorAll("a.gs-c-promo-heading").forEach(el => {
-        const title = el.innerText.trim();
-        const link = el.href;
-        if (title && link) list.push({ title, link });
-      });
-      return list;
+    const res = await axios.get("https://www.bbc.com/swahili");
+    const $ = cheerio.load(res.data);
+    const articles = [];
+    $("a.gs-c-promo-heading").each((i, el) => {
+      const link = $(el).attr("href");
+      const title = $(el).text().trim();
+      if (link && title) {
+        articles.push({
+          title,
+          link: link.startsWith("http") ? link : `https://www.bbc.com${link}`,
+          contentSnippet: "",
+          pubDate: new Date().toISOString(),
+          source: "BBC Swahili",
+          category: "international",
+          needsTranslation: false,
+          image: "/default-news.jpg"
+        });
+      }
     });
-
-    await browser.close();
-
-    return articles.slice(0, 10).map(a => ({
-      title: a.title,
-      link: a.link.startsWith("http") ? a.link : `https://www.bbc.com${a.link}`,
-      contentSnippet: "",
-      pubDate: new Date().toISOString(),
-      source: "BBC Swahili",
-      category: "international",
-      needsTranslation: false,
-      image: "/default-news.jpg"
-    }));
+    return articles.slice(0, 10);
   } catch (err) {
-    console.error("BBC Swahili Puppeteer scraping error:", err.message);
+    console.error("BBC Swahili scraping error:", err.message);
     return [];
   }
 }
@@ -186,7 +174,7 @@ async function getArticles() {
     }
   }
 
-  // Puppeteer scrape for RFI and BBC Swahili
+  // Cheerio scrape for RFI and BBC Swahili
   const rfiArticles = await scrapeRFI();
   const bbcSwArticles = await scrapeBBCSwahili();
   articles = articles.concat(rfiArticles, bbcSwArticles);
