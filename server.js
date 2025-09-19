@@ -10,8 +10,8 @@ app.use(express.static("public"));
 
 // ---------------- Configuration ----------------
 const PORT = process.env.PORT || 3000;
-const CACHE_EXPIRY = 30 * 60 * 1000; // 30 min
-const REQUEST_TIMEOUT = 20000;
+const CACHE_EXPIRY = 30 * 60 * 1000; // 30 min cache
+const REQUEST_TIMEOUT = 25000;
 const USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -19,54 +19,21 @@ const USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0"
 ];
 
-// ---------------- Translation Cache ----------------
+// ---------------- Caches ----------------
 const translationCache = {};
+const feedCache = {
+    data: {},
+    lastUpdated: 0,
+    isUpdating: false
+};
 
-async function translateToSwahili(text) {
-    if (!text || text.trim() === "") return "Hakuna maelezo";
-    
-    const now = Date.now();
-    if (translationCache[text] && now - translationCache[text].timestamp < CACHE_EXPIRY) {
-        return translationCache[text].translation;
-    }
-    
-    try {
-        const cleanText = text.replace(/[^\w\s.,!?;:'"-]/gi, '').trim();
-        if (!cleanText) return "Hakuna maelezo";
-        
-        const res = await translate(cleanText, { to: "sw" });
-        const translation = res.text;
-        translationCache[text] = { translation, timestamp: now };
-        
-        return translation;
-    } catch (err) {
-        console.error("Translation error:", err.message, "| Text:", text);
-        return text;
-    }
+// ---------------- Utility Functions ----------------
+function getRandomUserAgent() {
+    return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-// ---------------- Swahili Detection ----------------
-function isSwahili(text) {
-    if (!text) return false;
-    
-    const swIndicators = ["ya", "wa", "za", "ku", "na", "ni", "kwa", "haya", "hii", "hili", 
-                         "hivi", "mimi", "wewe", "yeye", "sisi", "nyinyi", "wao", "katika",
-                         "lakini", "hata", "kama", "baada", "kabla", "bado", "sana", "pia"];
-    
-    const words = text.toLowerCase().split(/\s+/);
-    let count = 0;
-    
-    for (const word of words) {
-        if (swIndicators.includes(word)) count++;
-        if (count >= 3) return true;
-    }
-    
-    return false;
-}
-
-// ---------------- HTTP Request Utility ----------------
 async function makeRequest(url, options = {}) {
-    const userAgent = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+    const userAgent = getRandomUserAgent();
     
     const defaultOptions = {
         timeout: REQUEST_TIMEOUT,
@@ -96,7 +63,7 @@ async function makeRequest(url, options = {}) {
         // Retry with different user agent if 403
         if (error.response && error.response.status === 403) {
             console.log("Retrying with different user agent...");
-            finalOptions.headers["User-Agent"] = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+            finalOptions.headers["User-Agent"] = getRandomUserAgent();
             
             try {
                 const retryResponse = await axios.get(url, finalOptions);
@@ -109,6 +76,48 @@ async function makeRequest(url, options = {}) {
         
         throw error;
     }
+}
+
+// ---------------- Translation Functions ----------------
+async function translateToSwahili(text) {
+    if (!text || text.trim() === "") return "Hakuna maelezo";
+    
+    const now = Date.now();
+    if (translationCache[text] && now - translationCache[text].timestamp < CACHE_EXPIRY) {
+        return translationCache[text].translation;
+    }
+    
+    try {
+        const cleanText = text.replace(/[^\w\s.,!?;:'"-]/gi, '').trim();
+        if (!cleanText) return "Hakuna maelezo";
+        
+        const res = await translate(cleanText, { to: "sw" });
+        const translation = res.text;
+        translationCache[text] = { translation, timestamp: now };
+        
+        return translation;
+    } catch (err) {
+        console.error("Translation error:", err.message, "| Text:", text);
+        return text;
+    }
+}
+
+function isSwahili(text) {
+    if (!text) return false;
+    
+    const swIndicators = ["ya", "wa", "za", "ku", "na", "ni", "kwa", "haya", "hii", "hili", 
+                         "hivi", "mimi", "wewe", "yeye", "sisi", "nyinyi", "wao", "katika",
+                         "lakini", "hata", "kama", "baada", "kabla", "bado", "sana", "pia"];
+    
+    const words = text.toLowerCase().split(/\s+/);
+    let count = 0;
+    
+    for (const word of words) {
+        if (swIndicators.includes(word)) count++;
+        if (count >= 3) return true;
+    }
+    
+    return false;
 }
 
 // ---------------- RSS Parser ----------------
@@ -244,20 +253,56 @@ async function scrapeBBCSwahili() {
     }
 }
 
+// ---------------- Fallback Feeds ----------------
+function getFallbackArticles() {
+    // Return some default articles when feeds fail
+    return [
+        {
+            title: "Habari za Kiswahili",
+            title_sw: "Habari za Kiswahili",
+            contentSnippet: "Karibu kwenye tovuti yetu ya habari za Kiswahili",
+            description_sw: "Karibu kwenye tovuti yetu ya habari za Kiswahili",
+            pubDate: new Date().toISOString(),
+            source: "HabariHub",
+            category: "international",
+            link: "#",
+            image: "/default-news.jpg",
+            needsTranslation: false
+        },
+        {
+            title: "Welcome to Swahili News",
+            title_sw: "Karibu kwenye Habari za Kiswahili",
+            contentSnippet: "Welcome to our Swahili news portal",
+            description_sw: "Karibu kwenye tovuti yetu ya habari za Kiswahili",
+            pubDate: new Date().toISOString(),
+            source: "HabariHub",
+            category: "international",
+            link: "#",
+            image: "/default-news.jpg",
+            needsTranslation: true
+        }
+    ];
+}
+
 // ---------------- Article Processing ----------------
 async function processFeedItems(feed, category, url) {
     if (!feed.items || feed.items.length === 0) return [];
     
     return Promise.all(
-        feed.items.map(async (item) => {
+        feed.items.slice(0, 5).map(async (item) => {
             const needsTranslation = !isSwahili(item.title);
             
             let title_sw = item.title;
             let description_sw = item.contentSnippet || item.description || "";
             
             if (needsTranslation) {
-                title_sw = await translateToSwahili(item.title);
-                description_sw = await translateToSwahili(description_sw);
+                try {
+                    title_sw = await translateToSwahili(item.title);
+                    description_sw = await translateToSwahili(description_sw);
+                } catch (err) {
+                    console.error("Translation error:", err.message);
+                    // Keep original text if translation fails
+                }
             }
             
             return {
@@ -278,14 +323,20 @@ async function processFeedItems(feed, category, url) {
 
 // ---------------- Main Article Fetch ----------------
 async function getArticles() {
+    // Return cached data if it's still fresh
+    if (Date.now() - feedCache.lastUpdated < CACHE_EXPIRY && !feedCache.isUpdating) {
+        return feedCache.data;
+    }
+    
+    // Set updating flag to prevent multiple simultaneous updates
+    feedCache.isUpdating = true;
+    
     const feeds = {
         international: [
             "https://feeds.bbci.co.uk/news/rss.xml",
-            "http://rss.cnn.com/rss/edition.rss",
+            "https://rss.cnn.com/rss/edition.rss",  // Using HTTPS instead of HTTP
             "https://rss.dw.com/rdf/rss-kis-all",
-            "https://parstoday.ir/sw/rss",
-            "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-            "https://www.msnbc.com/feeds/latest"
+            "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
         ],
         sports: [
             "https://www.bbc.com/sport/africa/rss.xml",
@@ -319,15 +370,31 @@ async function getArticles() {
         scrapeBBCSwahili().then(items => articles = articles.concat(items))
     );
 
-    await Promise.allSettled(feedPromises);
-
-    // Sort by date and limit to 50 articles
-    articles = articles
-        .filter(a => a.pubDate)
-        .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
-        .slice(0, 50);
-
-    return articles;
+    try {
+        await Promise.allSettled(feedPromises);
+        
+        // Sort by date and limit to 50 articles
+        articles = articles
+            .filter(a => a.pubDate)
+            .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
+            .slice(0, 50);
+            
+        // Add fallback articles if we have very few
+        if (articles.length < 5) {
+            articles = articles.concat(getFallbackArticles());
+        }
+        
+        // Update cache
+        feedCache.data = articles;
+        feedCache.lastUpdated = Date.now();
+        
+        return articles;
+    } catch (err) {
+        console.error("Error in getArticles:", err);
+        return getFallbackArticles();
+    } finally {
+        feedCache.isUpdating = false;
+    }
 }
 
 // ---------------- Express Routes ----------------
@@ -339,7 +406,7 @@ app.get("/", async (req, res) => {
         console.error("Main route error:", err);
         res.status(500).render("error", { 
             message: "Error loading news articles",
-            error: err.message
+            error: process.env.NODE_ENV === 'development' ? err.message : 'Please try again later'
         });
     }
 });
@@ -352,14 +419,24 @@ app.get("/api/articles", async (req, res) => {
         console.error("API route error:", err);
         res.status(500).json({ 
             error: "Failed to fetch articles",
-            message: err.message 
+            message: process.env.NODE_ENV === 'development' ? err.message : 'Please try again later'
         });
     }
 });
 
 // Health check endpoint
 app.get("/health", (req, res) => {
-    res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+    res.status(200).json({ 
+        status: "OK", 
+        timestamp: new Date().toISOString(),
+        cacheAge: Date.now() - feedCache.lastUpdated
+    });
+});
+
+// Clear cache endpoint (for debugging)
+app.post("/clear-cache", (req, res) => {
+    feedCache.lastUpdated = 0;
+    res.status(200).json({ status: "Cache cleared" });
 });
 
 // Start server
