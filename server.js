@@ -518,8 +518,9 @@ async function getArticles() {
         scrapeRFI().then(items => articles = articles.concat(items))
     );
     feedPromises.push(
-        scrapeBBCSwahili().then(items => articles = articles.concat(items))
-    );
+    fetchBBCSwahili().then(items => articles = articles.concat(items))
+);
+;
     feedPromises.push(
         scrapeVOASwahili().then(items => articles = articles.concat(items))
     );
