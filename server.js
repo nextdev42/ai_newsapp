@@ -205,56 +205,60 @@ async function scrapeRFI() {
     }
 }
 
+// Enhanced BBC Swahili API integration
+async function getBBCSwahiliArticles() {
+    try {
+        // Using the BBC News API approach mentioned in search results
+        const response = await axios.get('https://bbc-news-api.vercel.app/news?lang=swahili');
+        
+        return response.data.latest.map(item => ({
+            title: item.title,
+            link: item.news_link,
+            contentSnippet: item.summary,
+            pubDate: new Date().toISOString(),
+            source: "BBC Swahili",
+            category: "international",
+            needsTranslation: false,
+            image: item.image_link || "https://ichef.bbci.co.uk/news/1024/branded_swahili.png"
+        }));
+    } catch (error) {
+        console.error("BBC API error:", error.message);
+        
+        // Fallback to scraping if API fails
+        return await scrapeBBCSwahili();
+    }
+}
+
+// Enhanced scraping function as fallback
 async function scrapeBBCSwahili() {
     try {
-        const url = "https://www.bbc.com/swahili";
-        const { data } = await axios.get(url, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.5",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Connection": "keep-alive"
-            },
-            timeout: 15000
+        const { data } = await axios.get("https://www.bbc.com/swahili", {
+            headers: { 
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+            }
         });
-
+        
         const $ = cheerio.load(data);
         const articles = [];
 
-        // Method 1: Look for specific BBC article containers
+        // Improved selector for BBC Swahili articles
         $('[data-testid="content-card"], [data-testid="topic-promo"], .bbc-1gp6qke').each((i, el) => {
-            if (i >= 15) return false; // Limit results
-            
             const $el = $(el);
-            const linkElem = $el.find('a[href*="/swahili/articles/"]').first();
-            const link = linkElem.attr('href');
+            const link = $el.find('a[href*="/swahili/articles/"]').attr('href');
             
-            if (!link) return;
-            
-            const fullLink = link.startsWith("http") ? link : `https://www.bbc.com${link}`;
-            
-            // Extract title - try multiple selectors
-            let title = $el.find('h2, h3, [data-testid="card-headline"]').first().text().trim();
-            if (!title) title = linkElem.text().trim();
-            
-            // Extract description/snippet
-            let snippet = $el.find('p, [data-testid="card-description"]').first().text().trim();
-            
-            // Extract image - try multiple sources
-            let img = $el.find('img').attr('src') || 
-                     $el.find('img').attr('data-src') ||
-                     $el.find('source').attr('srcset') ||
-                     "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
-            
-            // Clean image URL
-            if (img.startsWith("//")) img = "https:" + img;
-            if (img.includes("?") && !img.includes("http")) {
-                img = "https://ichef.bbci.co.uk" + img.split('?')[0];
-            }
-            
-            // Only add if we have a valid title
-            if (title && title.length > 10) {
+            if (link) {
+                const fullLink = link.startsWith("http") ? link : `https://www.bbc.com${link}`;
+                const title = $el.find('h2, h3, [data-testid="card-headline"]').first().text().trim();
+                const snippet = $el.find('p, [data-testid="card-description"]').first().text().trim();
+                
+                // Extract image with better handling
+                let image = $el.find('img').attr('src') || 
+                           $el.find('img').attr('data-src') || 
+                           "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
+                
+                if (image.startsWith("//")) image = "https:" + image;
+                
                 articles.push({
                     title: title,
                     link: fullLink,
@@ -263,82 +267,15 @@ async function scrapeBBCSwahili() {
                     source: "BBC Swahili",
                     category: "international",
                     needsTranslation: false,
-                    image: img
+                    image: image
                 });
             }
         });
 
-        // Method 2: If first method didn't find enough articles, try alternative selectors
-        if (articles.length < 5) {
-            $('a[href*="/swahili/articles/"]').each((i, el) => {
-                if (articles.length >= 10) return false;
-                
-                const $el = $(el);
-                const link = $el.attr('href');
-                if (!link) return;
-                
-                const fullLink = link.startsWith("http") ? link : `https://www.bbc.com${link}`;
-                
-                // Navigate up to find container with content
-                const container = $el.closest('div, li, article');
-                
-                // Extract title
-                let title = container.find('h2, h3, h4').first().text().trim();
-                if (!title) title = $el.text().trim();
-                if (!title || title.length < 10) return;
-                
-                // Extract snippet
-                let snippet = container.find('p').first().text().trim();
-                
-                // Extract image
-                let img = container.find('img').attr('src') || 
-                         container.find('img').attr('data-src') ||
-                         "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
-                
-                if (img.startsWith("//")) img = "https:" + img;
-                
-                // Avoid duplicates
-                if (!articles.some(a => a.link === fullLink)) {
-                    articles.push({
-                        title: title,
-                        link: fullLink,
-                        contentSnippet: snippet,
-                        pubDate: new Date().toISOString(),
-                        source: "BBC Swahili",
-                        category: "international",
-                        needsTranslation: false,
-                        image: img
-                    });
-                }
-            });
-        }
-
         return articles.slice(0, 10);
     } catch (error) {
         console.error("BBC Swahili scraping error:", error.message);
-        // Return some fallback BBC content
-        return [
-            {
-                title: "Uchaguzi na utawala bora unavyoipima Tanzania kimataifa",
-                link: "https://www.bbc.com/swahili/articles/c87yedvq200o",
-                contentSnippet: "Ripoti ya mwaka 2025 ya Country Governance and Government Index (CGGI) imeiweka Tanzania miongoni mwa nchi 10 bora barani Afrika kwa viwango vya utawala bora",
-                pubDate: new Date().toISOString(),
-                source: "BBC Swahili",
-                category: "international",
-                needsTranslation: false,
-                image: "https://ichef.bbci.co.uk/news/1024/branded_swahili.png"
-            },
-            {
-                title: "Je, visikizi visivyotumia waya ni salama kwa afya?",
-                link: "https://www.bbc.com/swahili/articles/cx23gjzqy8qo",
-                contentSnippet: "Wasiwasi kuhusu hatari za kiafza za visikizi visivyotumia waya husemwa sana mtandaoni - lakini kuna ukweli wowote?",
-                pubDate: new Date().toISOString(),
-                source: "BBC Swahili",
-                category: "health",
-                needsTranslation: false,
-                image: "https://ichef.bbci.co.uk/news/1024/branded_swahili.png"
-            }
-        ];
+        return [];
     }
 }
 
