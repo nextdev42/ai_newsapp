@@ -2,7 +2,7 @@ import express from "express";
 import Parser from "rss-parser";
 import axios from "axios";
 import translate from "@iamtraction/google-translate";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio";
 
 const app = express();
 app.set("view engine", "ejs");
