@@ -334,7 +334,7 @@ async function getArticles() {
     const feeds = {
         international: [
             "https://feeds.bbci.co.uk/news/rss.xml",
-            "https://rss.cnn.com/rss/edition.rss",  // Using HTTPS instead of HTTP
+            "http://rss.cnn.com/rss/edition.rss",  // Using HTTP instead of HTTPS
             "https://rss.dw.com/rdf/rss-kis-all",
             "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
         ],
