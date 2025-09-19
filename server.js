@@ -22,7 +22,7 @@ const USER_AGENTS = [
 // ---------------- Caches ----------------
 const translationCache = {};
 const feedCache = {
-    data: {},
+    data: [],
     lastUpdated: 0,
     isUpdating: false
 };
@@ -59,21 +59,6 @@ async function makeRequest(url, options = {}) {
         return response;
     } catch (error) {
         console.error(`Request failed for ${url}:`, error.message);
-        
-        // Retry with different user agent if 403
-        if (error.response && error.response.status === 403) {
-            console.log("Retrying with different user agent...");
-            finalOptions.headers["User-Agent"] = getRandomUserAgent();
-            
-            try {
-                const retryResponse = await axios.get(url, finalOptions);
-                return retryResponse;
-            } catch (retryError) {
-                console.error(`Retry also failed for ${url}:`, retryError.message);
-                throw retryError;
-            }
-        }
-        
         throw error;
     }
 }
@@ -253,9 +238,41 @@ async function scrapeBBCSwahili() {
     }
 }
 
+async function scrapeVOASwahili() {
+    try {
+        const res = await makeRequest("https://www.voaswahili.com/");
+        const $ = cheerio.load(res.data);
+        const articles = [];
+        
+        $('.media-block, article, .card').each((i, el) => {
+            const $el = $(el);
+            const link = $el.find('a').attr('href');
+            const title = $el.find('h3, h4, .title, .headline').text().trim();
+            
+            if (link && title) {
+                const img = $el.find('img').attr('src') || $el.find('img').attr('data-src') || "/default-news.jpg";
+                articles.push({
+                    title,
+                    link: link.startsWith("http") ? link : `https://www.voaswahili.com${link}`,
+                    contentSnippet: $el.find('p, .teaser, .summary').text().trim() || "",
+                    pubDate: new Date().toISOString(),
+                    source: "VOA Swahili",
+                    category: "international",
+                    needsTranslation: false,
+                    image: img.startsWith("http") ? img : `https://www.voaswahili.com${img}`
+                });
+            }
+        });
+        
+        return articles.slice(0, 10);
+    } catch (err) {
+        console.error("VOA Swahili scraping error:", err.message);
+        return [];
+    }
+}
+
 // ---------------- Fallback Feeds ----------------
 function getFallbackArticles() {
-    // Return some default articles when feeds fail
     return [
         {
             title: "Habari za Kiswahili",
@@ -334,13 +351,17 @@ async function getArticles() {
     const feeds = {
         international: [
             "https://feeds.bbci.co.uk/news/rss.xml",
-            "http://rss.cnn.com/rss/edition.rss",  // Using HTTP instead of HTTPS
-            "https://rss.dw.com/rdf/rss-kis-all",
+            "http://rss.cnn.com/rss/edition.rss",
+            "https://www.msnbc.com/feeds/latest",
             "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
         ],
         sports: [
             "https://www.bbc.com/sport/africa/rss.xml",
             "https://www.espn.com/espn/rss/news"
+        ],
+        swahili: [
+            "https://www.voaswahili.com/api/zq$omekvm", // VOA Swahili RSS
+            "https://rss.dw.com/rdf/rss-kis-all" // DW Swahili
         ]
     };
 
@@ -362,12 +383,15 @@ async function getArticles() {
         }
     }
 
-    // Cheerio scrape for RFI and BBC Swahili
+    // Cheerio scrape for sites that don't have reliable RSS
     feedPromises.push(
         scrapeRFI().then(items => articles = articles.concat(items))
     );
     feedPromises.push(
         scrapeBBCSwahili().then(items => articles = articles.concat(items))
+    );
+    feedPromises.push(
+        scrapeVOASwahili().then(items => articles = articles.concat(items))
     );
 
     try {
