@@ -1,19 +1,16 @@
 import express from "express";
 import Parser from "rss-parser";
-import axios from "axios";
-import * as cheerio from "cheerio";
+import fs from "fs/promises";
+import path from "path";
 import translate from "@iamtraction/google-translate";
-import fs from "fs";
 
 const app = express();
-const parser = new Parser();
-
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 
 // ---------------- Translation Cache ----------------
 const translationCache = {};
-const CACHE_EXPIRY = 30 * 60 * 1000; // 30 min
+const CACHE_EXPIRY = 30 * 60 * 1000; // 30 minutes
 
 async function translateToSwahili(text) {
   if (!text || text.trim() === "") return "Hakuna maelezo";
@@ -35,109 +32,98 @@ async function translateToSwahili(text) {
 }
 
 // ---------------- RSS Feeds ----------------
-const feedUrls = [
-  "https://feeds.bbci.co.uk/news/rss.xml",
-  "http://rss.cnn.com/rss/edition.rss",
- // "https://feeds.reuters.com/reuters/topNews",
-  "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-  "https://www.msnbc.com/feeds/latest"
+const rssFeeds = [
+//  { url: "http://rss.cnn.com/rss/edition.rss", category: "international", source: "CNN" },
+  { url: "https://feeds.bbci.co.uk/news/rss.xml", category: "international", source: "BBC" },
+//  { url: "https://feeds.reuters.com/reuters/topNews", category: "international", source: "Reuters" }
 ];
 
-async function fetchRSSFeed(url) {
+const parser = new Parser();
+
+async function fetchRSSArticles() {
+  const articles = [];
+  for (const feed of rssFeeds) {
+    try {
+      const rss = await parser.parseURL(feed.url);
+      rss.items.forEach(item => {
+        articles.push({
+          title: item.title || "Hakuna Kichwa",
+          description: item.contentSnippet || item.content || "Hakuna Maelezo",
+          link: item.link,
+          pubDate: item.pubDate,
+          source: feed.source,
+          category: feed.category,
+          image: item.enclosure?.url || "/default-news.jpg",
+          needsTranslation: true
+        });
+      });
+    } catch (err) {
+      console.error(`${feed.source} RSS error:`, err.message);
+    }
+  }
+  return articles;
+}
+
+// ---------------- Scrapy JSON ----------------
+async function fetchMwananchiArticles() {
   try {
-    const feed = await parser.parseURL(url);
-    return feed.items.map(item => ({
-      title: item.title || "No title",
-      link: item.link,
-      description: item.contentSnippet || item.content || "No description",
-      pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-      source: feed.title || url,
-      image: item.enclosure?.url || null,
-      needsTranslation: true
+    const filePath = path.join(process.cwd(), "mwananchi.json");
+    const data = await fs.readFile(filePath, "utf-8");
+    const articles = JSON.parse(data);
+
+    // Assign category and source
+    return articles.map(a => ({
+      title: a.title || "Hakuna Kichwa",
+      description: a.description || "Hakuna Maelezo",
+      link: a.link,
+      pubDate: a.pubDate || null,
+      source: "Mwananchi",
+      category: "tanzania",
+      image: a.image || "/default-news.jpg",
+      needsTranslation: false // Mwananchi already Swahili
     }));
   } catch (err) {
-    console.error(`RSS fetch error for ${url}:`, err.message);
+    console.error("Mwananchi JSON error:", err.message);
     return [];
   }
 }
 
-// ---------------- Mwananchi Scraper ----------------
-const headers = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.9",
-  "Referer": "https://www.google.com/",
-  "Connection": "keep-alive"
-};
+// ---------------- Combine All Articles ----------------
+async function getAllArticles() {
+  const [rssArticles, mwananchiArticles] = await Promise.all([
+    fetchRSSArticles(),
+    fetchMwananchiArticles()
+  ]);
 
-async function scrapeMwananchi() {
-  try {
-    const { data } = await axios.get("https://www.mwananchi.co.tz/mw", { headers, timeout: 20000 });
-    const $ = cheerio.load(data);
-    const articles = [];
+  const allArticles = [...mwananchiArticles, ...rssArticles];
 
-    $(".article-item, .news-item").each((i, el) => {
-      const title = $(el).find(".title").text().trim();
-      const link = $(el).find("a").attr("href");
-      const description = $(el).find(".summary, p").first().text().trim();
-      let image = $(el).find("img").attr("src");
-      if (image && !image.startsWith("http")) image = `https://www.mwananchi.co.tz${image}`;
-
-      if (title && link) {
-        articles.push({
-          title,
-          link: link.startsWith("http") ? link : `https://www.mwananchi.co.tz${link}`,
-          description: description || "Habari kutoka Mwananchi",
-          image: image || "/default-news.jpg",
-          needsTranslation: false // Already Swahili
-        });
+  // Translate RSS articles to Swahili
+  await Promise.all(
+    allArticles.map(async a => {
+      if (a.needsTranslation) {
+        a.title_sw = await translateToSwahili(a.title);
+        a.description_sw = await translateToSwahili(a.description);
+      } else {
+        a.title_sw = a.title;
+        a.description_sw = a.description;
       }
-    });
+    })
+  );
 
-    return articles.slice(0, 20);
-  } catch (err) {
-    console.error("Mwananchi scraping error:", err.message);
-    return [];
-  }
+  // Sort by date (newest first)
+  allArticles.sort((a, b) => {
+    const dateA = a.pubDate ? new Date(a.pubDate).getTime() : 0;
+    const dateB = b.pubDate ? new Date(b.pubDate).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  return allArticles;
 }
 
-// ---------------- Main Route ----------------
+// ---------------- Express ----------------
 app.get("/", async (req, res) => {
   try {
-    // Fetch RSS feeds
-    const rssPromises = feedUrls.map(fetchRSSFeed);
-    const rssArticles = (await Promise.all(rssPromises)).flat();
-
-    // Fetch Mwananchi
-    const mwananchiArticles = await scrapeMwananchi();
-
-    // Merge all articles
-    let articles = rssArticles.concat(mwananchiArticles);
-
-    // Translate only where needed
-    await Promise.all(
-      articles.map(async (a) => {
-        if (a.needsTranslation) {
-          a.title_sw = await translateToSwahili(a.title);
-          a.description_sw = await translateToSwahili(a.description);
-        } else {
-          a.title_sw = a.title;
-          a.description_sw = a.description;
-        }
-      })
-    );
-
-    // Sort by date (newest first)
-    articles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-    // Limit to latest 30 articles
-    articles = articles.slice(0, 30);
-
-    // Ensure fallback image
-    articles.forEach(a => {
-      if (!a.image) a.image = "/default-news.jpg";
-    });
-
+    const articles = await getAllArticles();
     res.render("index", { articles });
   } catch (err) {
     console.error("Main route error:", err);
