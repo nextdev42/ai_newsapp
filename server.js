@@ -208,76 +208,34 @@ async function scrapeRFI() {
 // Enhanced BBC Swahili API integration
 async function getBBCSwahiliArticles() {
     try {
-        // Using the BBC News API approach mentioned in search results
-        const response = await axios.get('https://bbc-news-api.vercel.app/news?lang=swahili');
-        
-        return response.data.latest.map(item => ({
-            title: item.title,
-            link: item.news_link,
-            contentSnippet: item.summary,
+        const response = await axios.get("https://bbc-news-api.vercel.app/news?lang=swahili");
+
+        if (!response.data || !Array.isArray(response.data.latest)) {
+            console.error("BBC API returned unexpected structure");
+            return [];
+        }
+
+        return response.data.latest.slice(0, 10).map(item => ({
+            title: item.title || "",
+            title_sw: item.title || "",
+            link: item.news_link || "#",
+            contentSnippet: item.summary || "",
+            description_sw: item.summary || "",
             pubDate: new Date().toISOString(),
             source: "BBC Swahili",
-            category: "international",
+            category: "swahili",
             needsTranslation: false,
             image: item.image_link || "https://ichef.bbci.co.uk/news/1024/branded_swahili.png"
         }));
     } catch (error) {
         console.error("BBC API error:", error.message);
-        
-        // Fallback to scraping if API fails
-        return await scrapeBBCSwahili();
-    }
-}
-
-// Enhanced scraping function as fallback
-async function scrapeBBCSwahili() {
-    try {
-        const { data } = await axios.get("https://www.bbc.com/swahili", {
-            headers: { 
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
-            }
-        });
-        
-        const $ = cheerio.load(data);
-        const articles = [];
-
-        // Improved selector for BBC Swahili articles
-        $('[data-testid="content-card"], [data-testid="topic-promo"], .bbc-1gp6qke').each((i, el) => {
-            const $el = $(el);
-            const link = $el.find('a[href*="/swahili/articles/"]').attr('href');
-            
-            if (link) {
-                const fullLink = link.startsWith("http") ? link : `https://www.bbc.com${link}`;
-                const title = $el.find('h2, h3, [data-testid="card-headline"]').first().text().trim();
-                const snippet = $el.find('p, [data-testid="card-description"]').first().text().trim();
-                
-                // Extract image with better handling
-                let image = $el.find('img').attr('src') || 
-                           $el.find('img').attr('data-src') || 
-                           "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
-                
-                if (image.startsWith("//")) image = "https:" + image;
-                
-                articles.push({
-                    title: title,
-                    link: fullLink,
-                    contentSnippet: snippet,
-                    pubDate: new Date().toISOString(),
-                    source: "BBC Swahili",
-                    category: "international",
-                    needsTranslation: false,
-                    image: image
-                });
-            }
-        });
-
-        return articles.slice(0, 10);
-    } catch (error) {
-        console.error("BBC Swahili scraping error:", error.message);
         return [];
     }
 }
+
+
+// Enhanced scraping function as fallback
+
 
 async function scrapeVOASwahili() {
     try {
