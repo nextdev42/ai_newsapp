@@ -205,57 +205,23 @@ async function scrapeRFI() {
     }
 }
 
-async function scrapeBBCSwahili() {
-  try {
-    const url = "https://www.bbc.com/swahili";
-    const { data } = await axios.get(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      }
-    });
-    const $ = cheerio.load(data);
-
-    const articles = [];
-    $("a[href*='/swahili/articles/']").each((i, el) => {
-      if (i >= 10) return false;
-
-      const link = $(el).attr("href");
-      if (!link) return;
-      
-      const fullLink = link.startsWith("http") ? link : `https://www.bbc.com${link}`;
-      const title = $(el).text().trim() || $(el).attr("aria-label") || "BBC Swahili";
-      const container = $(el).closest("div");
-
-      // Extract description
-      let snippet = container.find("p").first().text().trim();
-      if (!snippet) snippet = $(el).attr("aria-label") || "";
-
-      // Extract image
-      let img = container.find("img").attr("src") || 
-               container.find("img").attr("data-src") || 
-               "https://ichef.bbci.co.uk/news/1024/branded_swahili.png";
-
-      if (img.startsWith("//")) {
-        img = "https:" + img;
-      }
-
-      articles.push({
-        title,
-        link: fullLink,
-        contentSnippet: snippet,
-        pubDate: new Date().toISOString(),
-        source: "BBC Swahili",
-        category: "international",
-        needsTranslation: false,
-        image: img
-      });
-    });
-
-    return articles;
-  } catch (error) {
-    console.error("BBC Swahili scraping error:", error.message);
-    return [];
-  }
+async function fetchBBCSwahiliAPI() {
+    try {
+        const response = await axios.get('https://bbc-news-api.vercel.app/news?lang=swahili');
+        return response.data.latest.map(item => ({
+            title: item.title,
+            link: item.news_link,
+            contentSnippet: item.summary,
+            pubDate: new Date().toISOString(),
+            source: "BBC Swahili",
+            category: "international",
+            needsTranslation: false,
+            image: item.image_link || "https://ichef.bbci.co.uk/news/1024/branded_swahili.png"
+        }));
+    } catch (error) {
+        console.error("BBC API error:", error.message);
+        return [];
+    }
 }
 
 async function scrapeVOASwahili() {
