@@ -275,7 +275,7 @@ async function scrapeVOASwahili() {
 
 
 async function scrapeAlJazeera() {
-  const feedUrl = "https://www.aljazeera.com/xml/rss/all.xml"; // main RSS
+  const feedUrl = "https://www.aljazeera.com/xml/rss/all.xml";
   let articles = [];
 
   try {
@@ -286,36 +286,32 @@ async function scrapeAlJazeera() {
       },
     });
 
-    // Parse RSS manually
     const $ = cheerio.load(data, { xmlMode: true });
     const items = $("item");
 
-    for (let i = 0; i < Math.min(items.length, 5); i++) {
+    for (let i = 0; i < Math.min(items.length, 8); i++) {
       const el = items[i];
       const title = $(el).find("title").text();
       const link = $(el).find("link").text();
       const pubDate = $(el).find("pubDate").text();
 
-      // Go into article page to extract description + image
       let description = "";
       let image = "https://www.aljazeera.com/default-news.jpg";
 
       try {
         const { data: html } = await axios.get(link, {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-          },
+          headers: { "User-Agent": getRandomUserAgent() },
         });
         const $$ = cheerio.load(html);
 
         description =
           $$("meta[name='description']").attr("content") ||
-          $$("p").first().text() ||
+          $$("p").first().text().trim() ||
           "";
 
         image =
           $$("meta[property='og:image']").attr("content") ||
+          $$("figure img").attr("src") ||
           "https://www.aljazeera.com/default-news.jpg";
       } catch (err) {
         console.warn("Failed to scrape article details:", link, err.message);
@@ -324,6 +320,7 @@ async function scrapeAlJazeera() {
       articles.push({
         title,
         link,
+        contentSnippet: description,   // 👈 ongeza hii
         description,
         pubDate,
         source: "Al Jazeera",
@@ -338,6 +335,7 @@ async function scrapeAlJazeera() {
 
   return articles;
 }
+
 
 
 // ---------------- Fallback Feeds ----------------
