@@ -281,34 +281,51 @@ async function scrapeAlJazeera() {
   try {
     const feed = await parser.parseURL(feedUrl);
 
-    articles = feed.items.map(item => {
-      // Image extraction
-      let image = extractImageFromItem(item);
+    for (const item of feed.items.slice(0, 5)) {
+      const link = item.link;
+      let title = item.title || "";
+      let contentSnippet = item.contentSnippet || "";
+      let image = "https://www.aljazeera.com/default-news.jpg";
 
-      // contentSnippet
-      let contentSnippet = item.contentSnippet || item.description || "";
-      if (!contentSnippet && item.contentEncoded) {
-        const $ = cheerio.load(item.contentEncoded);
-        contentSnippet = $("p").first().text().trim();
+      try {
+        const { data: html } = await axios.get(link, {
+          headers: {
+            "User-Agent": getRandomUserAgent()
+          },
+        });
+
+        const $ = cheerio.load(html);
+
+        title = $("h1").first().text().trim() || title;
+        contentSnippet =
+          $("meta[name='description']").attr("content") ||
+          $("p").first().text().trim() ||
+          contentSnippet;
+
+        image =
+          $("meta[property='og:image']").attr("content") ||
+          image;
+      } catch (err) {
+        console.warn("Failed to scrape article details:", link, err.message);
       }
 
-      return {
-        title: item.title || "",
-        link: item.link || "",
+      articles.push({
+        title,
+        link,
         contentSnippet,
         pubDate: item.pubDate || new Date().toISOString(),
         source: "Al Jazeera",
-        category: item.categories && item.categories[0] ? item.categories[0] : "international",
+        category: item.categories && item.categories[0] ? item.categories[0] : "News",
         needsTranslation: true,
         image
-      };
-    });
+      });
+    }
 
   } catch (err) {
     console.error("Al Jazeera scraping error:", err.message);
   }
 
-  return articles.slice(0, 10);
+  return articles;
 }
 
 // ---------------- Fallback Feeds ----------------
