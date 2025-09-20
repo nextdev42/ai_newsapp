@@ -289,9 +289,7 @@ async function scrapeAlJazeera() {
 
       try {
         const { data: html } = await axios.get(link, {
-          headers: {
-            "User-Agent": getRandomUserAgent()
-          },
+          headers: { "User-Agent": getRandomUserAgent() },
         });
 
         const $ = cheerio.load(html);
@@ -309,14 +307,30 @@ async function scrapeAlJazeera() {
         console.warn("Failed to scrape article details:", link, err.message);
       }
 
+      // ----- Translation -----
+      let title_sw = title;
+      let description_sw = contentSnippet;
+      let needsTranslation = !isSwahili(title);
+
+      if (needsTranslation) {
+        try {
+          title_sw = await translateToSwahili(title);
+          description_sw = await translateToSwahili(contentSnippet);
+        } catch (err) {
+          console.error("Al Jazeera translation error:", err.message);
+        }
+      }
+
       articles.push({
         title,
+        title_sw,
         link,
         contentSnippet,
+        description_sw,
         pubDate: item.pubDate || new Date().toISOString(),
         source: "Al Jazeera",
         category: item.categories && item.categories[0] ? item.categories[0] : "News",
-        needsTranslation: true,
+        needsTranslation,
         image
       });
     }
