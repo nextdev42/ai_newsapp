@@ -386,7 +386,12 @@ async function getArticles() {
       "https://feeds.skynews.com/feeds/rss/world.xml",
       "https://feeds.bloomberg.com/markets/news.rss",
       "https://feeds.bloomberg.com/technology/news.rss",
-      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+      "https://feeds.bloomberg.com/wealth/news.rss",
+      "https://feeds.bloomberg.com/business/news.rss", 
+      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+      "https://www.cbsnews.com/latest/rss/main",
+      "https://www.cbsnews.com/latest/rss/health",
+      "https://www.cbsnews.com/latest/rss/cbs-mornings-cbs-mornings-plus-full-episodes"
     ],
     sports: [
       "https://www.bbc.com/sport/africa/rss.xml",
