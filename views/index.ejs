@@ -146,16 +146,16 @@
             <% articles.forEach(article => { %>
                 <div class="news-card" data-category="<%= article.category %>">
                     <% if (article.image) { %>
-                        <img src="<%= article.image %>" alt="<%= article.title_sw %>" class="news-image" loading="lazy">
+                        <img src="<%= article.image %>" alt="<%= article.title_sw || article.title %>" class="news-image" loading="lazy">
                     <% } else { %>
                         <div class="no-image">Hakuna Picha</div>
                     <% } %>
 
                     <div class="news-content">
                         <span class="news-source"><%= article.source %></span>
-                        <h3 class="news-title"><%= article.title_sw %></h3>
-                        <% if (article.description_sw) { %>
-                            <p class="news-desc"><%= article.description_sw %></p>
+                        <h3 class="news-title"><%= article.title_sw || article.title %></h3>
+                        <% if (article.description_sw || article.contentSnippet || article.description) { %>
+                            <p class="news-desc"><%= article.description_sw || article.contentSnippet || article.description || "" %></p>
                         <% } %>
 
                         <div class="news-meta">
@@ -167,7 +167,7 @@
                             <p class="scraped-notice">*Imepakuliwa moja kwa moja kutoka tovuti</p>
                         <% } %>
 
-                        <% if (article.needsTranslation && article.title !== article.title_sw) { %>
+                        <% if (article.needsTranslation) { %>
                             <p class="translation-notice">*Imetafsiriwa kiotomatiki</p>
                         <% } %>
                     </div>
@@ -177,12 +177,11 @@
     </div>
 
     <footer>
-        <p>HabariHub &copy; 2023 - Huduma bora kwa habari za Tanzania na duniani</p>
+        <p>HabariHub &copy; 2025 - Huduma bora kwa habari za Tanzania na duniani</p>
         <p>Powered by BBC, CNN, Reuters, The Citizen, The East African, ESPN, RFI, na vyanzo vingine vya habari</p>
     </footer>
 
     <script>
-        // Category filtering functionality
         document.addEventListener('DOMContentLoaded', function() {
             const tabs = document.querySelectorAll('.category-tab');
             const newsCards = document.querySelectorAll('.news-card');
@@ -198,7 +197,6 @@
                 });
             });
 
-            // Lazy reveal animation
             const observer = new IntersectionObserver(entries => {
                 entries.forEach(entry => {
                     if(entry.isIntersecting) entry.target.classList.add('visible');
