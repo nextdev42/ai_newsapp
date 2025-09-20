@@ -397,6 +397,7 @@ async function getArticles() {
       "https://www.espn.com/espn/rss/news"
     ],
     swahili: [
+      "https://parstoday.ir/sw/rss",
       "https://www.voaswahili.com/api/zkgoqpl-vomx-tpejmmqp",
       "https://feeds.bbci.co.uk/swahili/rss.xml",
       "https://rss.dw.com/rdf/rss-kis-all"
