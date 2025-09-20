@@ -279,60 +279,37 @@ async function scrapeAlJazeera() {
   let articles = [];
 
   try {
-    const { data } = await axios.get(feedUrl, {
-      headers: { "User-Agent": getRandomUserAgent() },
-    });
+    const feed = await parser.parseURL(feedUrl);
 
-    const $ = cheerio.load(data, { xmlMode: true });
-    const items = $("item");
+    articles = feed.items.map(item => {
+      // Image extraction
+      let image = extractImageFromItem(item);
 
-    for (let i = 0; i < Math.min(items.length, 8); i++) {
-      const el = items[i];
-      const title = $(el).find("title").text().trim();
-      const link = $(el).find("link").text().trim();
-      const pubDate = $(el).find("pubDate").text();
-
-      let snippet = "";
-      let image = "https://www.aljazeera.com/default-news.jpg";
-
-      try {
-        const { data: html } = await axios.get(link, {
-          headers: { "User-Agent": getRandomUserAgent() },
-        });
-        const $$ = cheerio.load(html);
-
-        snippet =
-          $$("meta[name='description']").attr("content") ||
-          $$("p").first().text().trim() ||
-          "";
-
-        image =
-          $$("meta[property='og:image']").attr("content") ||
-          $$("figure img").attr("src") ||
-          "https://www.aljazeera.com/default-news.jpg";
-      } catch (err) {
-        console.warn("Failed to scrape details for:", link, err.message);
+      // contentSnippet
+      let contentSnippet = item.contentSnippet || item.description || "";
+      if (!contentSnippet && item.contentEncoded) {
+        const $ = cheerio.load(item.contentEncoded);
+        contentSnippet = $("p").first().text().trim();
       }
 
-      articles.push({
-        title,                // 👈 lazima kuwepo
-        link,
-        contentSnippet: snippet, // 👈 hii ndiyo frontend inangoja
-        pubDate,
+      return {
+        title: item.title || "",
+        link: item.link || "",
+        contentSnippet,
+        pubDate: item.pubDate || new Date().toISOString(),
         source: "Al Jazeera",
-        category: "international",
+        category: item.categories && item.categories[0] ? item.categories[0] : "international",
         needsTranslation: true,
-        image,
-      });
-    }
+        image
+      };
+    });
+
   } catch (err) {
     console.error("Al Jazeera scraping error:", err.message);
   }
 
-  return articles;
+  return articles.slice(0, 10);
 }
-
-
 
 // ---------------- Fallback Feeds ----------------
 function getFallbackArticles() {
