@@ -380,6 +380,12 @@ async function getArticles() {
       "https://feeds.bbci.co.uk/news/rss.xml",
       "http://rss.cnn.com/rss/edition.rss",
       "https://feeds.nbcnews.com/msnbc/public/news",
+      "https://feeds.skynews.com/feeds/rss/technology.xml",
+      "https://feeds.skynews.com/feeds/rss/business.xml",
+      "https://feeds.skynews.com/feeds/rss/entertainment.xml",
+      "https://feeds.skynews.com/feeds/rss/world.xml",
+      "https://feeds.bloomberg.com/markets/news.rss",
+      "https://feeds.bloomberg.com/technology/news.rss",
       "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
     ],
     sports: [
