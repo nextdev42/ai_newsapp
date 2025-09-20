@@ -280,10 +280,7 @@ async function scrapeAlJazeera() {
 
   try {
     const { data } = await axios.get(feedUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-      },
+      headers: { "User-Agent": getRandomUserAgent() },
     });
 
     const $ = cheerio.load(data, { xmlMode: true });
@@ -291,11 +288,11 @@ async function scrapeAlJazeera() {
 
     for (let i = 0; i < Math.min(items.length, 8); i++) {
       const el = items[i];
-      const title = $(el).find("title").text();
-      const link = $(el).find("link").text();
+      const title = $(el).find("title").text().trim();
+      const link = $(el).find("link").text().trim();
       const pubDate = $(el).find("pubDate").text();
 
-      let description = "";
+      let snippet = "";
       let image = "https://www.aljazeera.com/default-news.jpg";
 
       try {
@@ -304,7 +301,7 @@ async function scrapeAlJazeera() {
         });
         const $$ = cheerio.load(html);
 
-        description =
+        snippet =
           $$("meta[name='description']").attr("content") ||
           $$("p").first().text().trim() ||
           "";
@@ -314,14 +311,13 @@ async function scrapeAlJazeera() {
           $$("figure img").attr("src") ||
           "https://www.aljazeera.com/default-news.jpg";
       } catch (err) {
-        console.warn("Failed to scrape article details:", link, err.message);
+        console.warn("Failed to scrape details for:", link, err.message);
       }
 
       articles.push({
-        title,
+        title,                // 👈 lazima kuwepo
         link,
-        contentSnippet: description,   // 👈 ongeza hii
-        description,
+        contentSnippet: snippet, // 👈 hii ndiyo frontend inangoja
         pubDate,
         source: "Al Jazeera",
         category: "international",
