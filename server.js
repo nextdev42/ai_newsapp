@@ -34,7 +34,6 @@ function getRandomUserAgent() {
 
 async function makeRequest(url, options = {}) {
   const userAgent = getRandomUserAgent();
-
   const defaultOptions = {
     timeout: REQUEST_TIMEOUT,
     headers: {
@@ -51,9 +50,7 @@ async function makeRequest(url, options = {}) {
       "Referer": "https://www.google.com/"
     }
   };
-
   const finalOptions = { ...defaultOptions, ...options };
-
   try {
     const response = await axios.get(url, finalOptions);
     return response;
@@ -89,19 +86,15 @@ async function translateToSwahili(text) {
 
 function isSwahili(text) {
   if (!text) return false;
-
-  const swIndicators = ["ya", "wa", "za", "ku", "na", "ni", "kwa", "haya", "hii", "hili",
-    "hivi", "mimi", "wewe", "yeye", "sisi", "nyinyi", "wao", "katika",
-    "lakini", "hata", "kama", "baada", "kabla", "bado", "sana", "pia"];
-
+  const swIndicators = ["ya","wa","za","ku","na","ni","kwa","haya","hii","hili","hivi",
+                        "mimi","wewe","yeye","sisi","nyinyi","wao","katika","lakini",
+                        "hata","kama","baada","kabla","bado","sana","pia"];
   const words = text.toLowerCase().split(/\s+/);
   let count = 0;
-
   for (const word of words) {
     if (swIndicators.includes(word)) count++;
     if (count >= 3) return true;
   }
-
   return false;
 }
 
@@ -140,29 +133,19 @@ function extractImageFromItem(item) {
     item.mediaThumbnail.forEach(m => m.$?.url && imgs.push(m.$.url));
   }
 
-  const contentFields = [
-    item.content,
-    item.contentEncoded,
-    item.description,
-    item.summary
-  ].filter(Boolean);
-
+  const contentFields = [item.content, item.contentEncoded, item.description, item.summary].filter(Boolean);
   for (const c of contentFields) {
     try {
       const $ = cheerio.load(c);
       $("img").each((i, el) => {
         const src = $(el).attr("src") || $(el).attr("data-src");
-        if (src && src.startsWith("http")) {
-          imgs.push(src);
-        }
+        if (src && src.startsWith("http")) imgs.push(src);
       });
-    } catch (e) {
+    } catch {
       const matches = c.match(/<img[^>]+(src|data-src)="([^">]+)"/gi) || [];
       matches.forEach(match => {
         const srcMatch = match.match(/(src|data-src)="([^"]+)"/i);
-        if (srcMatch && srcMatch[2] && srcMatch[2].startsWith("http")) {
-          imgs.push(srcMatch[2]);
-        }
+        if (srcMatch && srcMatch[2] && srcMatch[2].startsWith("http")) imgs.push(srcMatch[2]);
       });
     }
   }
@@ -170,179 +153,7 @@ function extractImageFromItem(item) {
   return imgs.find(src => src.startsWith("http")) || "/default-news.jpg";
 }
 
-// ---------------- Cheerio Scrapers ----------------
-async function scrapeRFI() {
-  try {
-    const res = await makeRequest("https://www.rfi.fr/sw/");
-    const $ = cheerio.load(res.data);
-    const articles = [];
-
-    $("article").each((i, el) => {
-      const $el = $(el);
-      const link = $el.find("a").attr("href");
-      const title = $el.find("h2, h3, h4").text().trim() || $el.text().trim();
-
-      if (link && title) {
-        const img = $el.find("img").attr("src") || "/default-news.jpg";
-        articles.push({
-          title,
-          link: link.startsWith("http") ? link : `https://www.rfi.fr${link}`,
-          contentSnippet: $el.find("p").text().trim() || "",
-          pubDate: new Date().toISOString(),
-          source: "RFI Swahili",
-          category: "international",
-          needsTranslation: false,
-          image: img.startsWith("http") ? img : `https://www.rfi.fr${img}`
-        });
-      }
-    });
-
-    return articles.slice(0, 10);
-  } catch (err) {
-    console.error("RFI scraping error:", err.message);
-    return [];
-  }
-}
-
-async function scrapeVOASwahili() {
-  try {
-    const res = await makeRequest("https://www.voaswahili.com/api/zkgoqpl-vomx-tpejmmqp/");
-    const $ = cheerio.load(res.data);
-    const articles = [];
-
-    $("article").each((i, el) => {
-      const $el = $(el);
-      const link = $el.find("a").attr("href");
-      const title = $el.find("h2, h3, h4").first().text().trim();
-
-      if (link && title && title.length > 10) {
-        let img = $el.find("img").attr("src") || $el.find("img").attr("data-src") || "/default-news.jpg";
-
-        if (img.startsWith("//")) img = "https:" + img;
-        else if (!img.startsWith("http") && !img.startsWith("/default-news.jpg")) img = `https://www.voaswahili.com${img}`;
-
-        const description = $el.find("p").first().text().trim() ||
-          $el.find('[class*="teaser"], [class*="summary"]').text().trim() || "";
-
-        articles.push({
-          title,
-          link: link.startsWith("http") ? link : `https://www.voaswahili.com${link}`,
-          contentSnippet: description,
-          pubDate: new Date().toISOString(),
-          source: "VOA Swahili",
-          category: "swahili",
-          needsTranslation: false,
-          image: img
-        });
-      }
-    });
-
-    if (articles.length === 0) {
-      $(".media-block, .teaser, .story").each((i, el) => {
-        const $el = $(el);
-        const link = $el.find("a").attr("href");
-        const title = $el.find("h2, h3, h4").first().text().trim();
-
-        if (link && title && title.length > 10) {
-          let img = $el.find("img").attr("src") || $el.find("img").attr("data-src") || "/default-news.jpg";
-
-          if (img.startsWith("//")) img = "https:" + img;
-          else if (!img.startsWith("http") && !img.startsWith("/default-news.jpg")) img = `https://www.voaswahili.com${img}`;
-
-          const description = $el.find("p").first().text().trim() ||
-            $el.find('[class*="teaser"], [class*="summary"]').text().trim() || "";
-
-          articles.push({
-            title,
-            link: link.startsWith("http") ? link : `https://www.voaswahili.com${link}`,
-            contentSnippet: description,
-            pubDate: new Date().toISOString(),
-            source: "VOA Swahili",
-            category: "swahili",
-            needsTranslation: false,
-            image: img
-          });
-        }
-      });
-    }
-
-    return articles.slice(0, 10);
-  } catch (err) {
-    console.error("VOA Swahili scraping error:", err.message);
-    return [];
-  }
-}
-
-
-async function scrapeAlJazeera() {
-  const feedUrl = "https://www.aljazeera.com/xml/rss/all.xml";
-  let articles = [];
-
-  try {
-    const feed = await parser.parseURL(feedUrl);
-
-    for (const item of feed.items.slice(0, 5)) {
-      const link = item.link;
-      let title = item.title || "";
-      let contentSnippet = item.contentSnippet || "";
-      let image = "https://www.aljazeera.com/default-news.jpg";
-
-      try {
-        const { data: html } = await axios.get(link, {
-          headers: { "User-Agent": getRandomUserAgent() },
-        });
-
-        const $ = cheerio.load(html);
-
-        title = $("h1").first().text().trim() || title;
-        contentSnippet =
-          $("meta[name='description']").attr("content") ||
-          $("p").first().text().trim() ||
-          contentSnippet;
-
-        image =
-          $("meta[property='og:image']").attr("content") ||
-          image;
-      } catch (err) {
-        console.warn("Failed to scrape article details:", link, err.message);
-      }
-
-      // ----- Translation -----
-      let title_sw = title;
-      let description_sw = contentSnippet;
-      let needsTranslation = !isSwahili(title);
-
-      if (needsTranslation) {
-        try {
-          title_sw = await translateToSwahili(title);
-          description_sw = await translateToSwahili(contentSnippet);
-        } catch (err) {
-          console.error("Al Jazeera translation error:", err.message);
-        }
-      }
-
-      articles.push({
-        title,
-        title_sw,
-        link,
-        contentSnippet,
-        description_sw,
-        pubDate: item.pubDate || new Date().toISOString(),
-        source: "Al Jazeera",
-        category: item.categories && item.categories[0] ? item.categories[0] : "News",
-        needsTranslation,
-        image
-      });
-    }
-
-  } catch (err) {
-    console.error("Al Jazeera scraping error:", err.message);
-  }
-
-  return articles;
-}
-
-// ---------------- Fallback Feeds ----------------
+// ---------------- Fallback Articles ----------------
 function getFallbackArticles() {
   return [
     {
@@ -376,27 +187,32 @@ function getFallbackArticles() {
 async function processFeedItems(feed, category, url) {
   if (!feed.items || feed.items.length === 0) return [];
 
-  return Promise.all(
+  const items = await Promise.all(
     feed.items.slice(0, 5).map(async (item) => {
-      const needsTranslation = !isSwahili(item.title);
+      let title = item.title || "";
+      let content = item.contentSnippet || item.description || "";
 
-      let title_sw = item.title;
-      let description_sw = item.contentSnippet || item.description || "";
+      // Skip articles without content
+      if (!content || content.trim() === "") return null;
+
+      const needsTranslation = !isSwahili(title);
+      let title_sw = title;
+      let description_sw = content;
 
       if (needsTranslation) {
         try {
-          title_sw = await translateToSwahili(item.title);
-          description_sw = await translateToSwahili(description_sw);
+          title_sw = await translateToSwahili(title);
+          description_sw = await translateToSwahili(content);
         } catch (err) {
           console.error("Translation error:", err.message);
         }
       }
 
       return {
-        title: item.title || "",
+        title,
         title_sw,
         link: item.link || url,
-        contentSnippet: item.contentSnippet || item.description || "",
+        contentSnippet: content,
         description_sw,
         pubDate: item.pubDate || item.isoDate || new Date().toISOString(),
         source: feed.title || url,
@@ -406,6 +222,8 @@ async function processFeedItems(feed, category, url) {
       };
     })
   );
+
+  return items.filter(Boolean);
 }
 
 // ---------------- Main Article Fetch ----------------
@@ -444,23 +262,19 @@ async function getArticles() {
       feedPromises.push(
         fetchFeed(url)
           .then(feed => processFeedItems(feed, category, url))
-          .then(items => { articles = articles.concat(items); })
-          .catch(err => {
-            console.error(`Error processing feed ${url}:`, err.message);
-            return [];
+          .then(items => {
+            const filtered = items.filter(a => a.contentSnippet && a.contentSnippet.trim() !== "");
+            articles = articles.concat(filtered);
           })
+          .catch(err => console.error(`Error processing feed ${url}:`, err.message))
       );
     }
   }
 
-  // Scrapers for sites without reliable RSS
-  feedPromises.push(scrapeRFI().then(items => { articles = articles.concat(items); }));
-  feedPromises.push(scrapeVOASwahili().then(items => { articles = articles.concat(items); }));
-  feedPromises.push(scrapeAlJazeera().then(items => { articles = articles.concat(items); }));
-
   try {
     await Promise.allSettled(feedPromises);
 
+    // Sort by latest and limit to top 50
     articles = articles
       .filter(a => a.pubDate)
       .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
@@ -489,7 +303,6 @@ app.get("/", async (req, res) => {
     res.render("index", { articles });
   } catch (err) {
     console.error("Main route error:", err);
-    // Return JSON instead of rendering a missing error view
     res.status(500).json({
       message: "Error loading news articles",
       error: process.env.NODE_ENV === "development" ? err.message : "Please try again later"
@@ -510,7 +323,7 @@ app.get("/api/articles", async (req, res) => {
   }
 });
 
-// Health check endpoint
+// Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
@@ -519,7 +332,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Clear cache endpoint (for debugging)
+// Clear cache
 app.post("/clear-cache", (req, res) => {
   feedCache.lastUpdated = 0;
   res.status(200).json({ status: "Cache cleared" });
