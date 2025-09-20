@@ -273,43 +273,72 @@ async function scrapeVOASwahili() {
   }
 }
 
+
 async function scrapeAlJazeera() {
+  const feedUrl = "https://www.aljazeera.com/xml/rss/all.xml"; // main RSS
+  let articles = [];
+
   try {
-    const res = await makeRequest("https://www.aljazeera.com/");
-    const $ = cheerio.load(res.data);
-    const articles = [];
-
-    $('a[href*="/news/"], a[href*="/program/"]').each((i, el) => {
-      const $el = $(el);
-      const link = $el.attr("href");
-      const title = $el.find("h3, h2, span").first().text().trim();
-
-      if (link && title && title.length > 10 && !link.includes("/video/")) {
-        const $container = $el.closest("div, article, li");
-        let img = $container.find("img").attr("src") || $container.find("img").attr("data-src") || "/default-news.jpg";
-
-        if (img && img.startsWith("//")) img = "https:" + img;
-        else if (img && !img.startsWith("http") && !img.startsWith("/default-news.jpg")) img = `https://www.aljazeera.com${img}`;
-
-        articles.push({
-          title,
-          link: link.startsWith("http") ? link : `https://www.aljazeera.com${link}`,
-          contentSnippet: $container.find("p").text().trim() || "",
-          pubDate: new Date().toISOString(),
-          source: "Al Jazeera",
-          category: "international",
-          needsTranslation: true,
-          image: img.startsWith("http") ? img : `https://www.aljazeera.com${img}`
-        });
-      }
+    const { data } = await axios.get(feedUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+      },
     });
 
-    return articles.slice(0, 10);
+    // Parse RSS manually
+    const $ = cheerio.load(data, { xmlMode: true });
+    const items = $("item");
+
+    for (let i = 0; i < Math.min(items.length, 5); i++) {
+      const el = items[i];
+      const title = $(el).find("title").text();
+      const link = $(el).find("link").text();
+      const pubDate = $(el).find("pubDate").text();
+
+      // Go into article page to extract description + image
+      let description = "";
+      let image = "https://www.aljazeera.com/default-news.jpg";
+
+      try {
+        const { data: html } = await axios.get(link, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+          },
+        });
+        const $$ = cheerio.load(html);
+
+        description =
+          $$("meta[name='description']").attr("content") ||
+          $$("p").first().text() ||
+          "";
+
+        image =
+          $$("meta[property='og:image']").attr("content") ||
+          "https://www.aljazeera.com/default-news.jpg";
+      } catch (err) {
+        console.warn("Failed to scrape article details:", link, err.message);
+      }
+
+      articles.push({
+        title,
+        link,
+        description,
+        pubDate,
+        source: "Al Jazeera",
+        category: "international",
+        needsTranslation: true,
+        image,
+      });
+    }
   } catch (err) {
     console.error("Al Jazeera scraping error:", err.message);
-    return [];
   }
+
+  return articles;
 }
+
 
 // ---------------- Fallback Feeds ----------------
 function getFallbackArticles() {
